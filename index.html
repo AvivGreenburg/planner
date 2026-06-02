@@ -195,7 +195,7 @@ function setDriveUI(){const b=document.getElementById("drive");b.textContent=con
 function initGIS(){
   if(!(window.google&&google.accounts&&google.accounts.oauth2)){return setTimeout(initGIS,300);}
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,
-    callback:async r=>{if(r&&r.access_token){token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();try{await ensureFolder();}catch(e){} openDate(cur);}}});
+    callback:async r=>{if(r&&r.access_token){token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();try{await ensureFolder();await migrateDefaults();}catch(e){} openDate(cur);}}});
   if(localStorage.getItem("driveOn")==="1"){try{tokenClient.requestAccessToken({prompt:""});}catch(e){}}
 }
 function connectDrive(){if(tokenClient)tokenClient.requestAccessToken({prompt:connected?"":"consent"});else initGIS();}
@@ -227,6 +227,26 @@ async function driveLatestPrior(date){
   const j=await r.json();
   const ds=(j.files||[]).map(f=>(f.name.match(/plan-(\d{4}-\d{2}-\d{2})\.json/)||[])[1]).filter(s=>s&&s<date).sort();
   return ds.length?ds[ds.length-1]:null;
+}
+async function migrateDefaults(){
+  if(localStorage.getItem("migDefaultsV2")==="1")return;
+  const OLD=["Dishes + laundry (podcast)","Shower + dressed","Yoga","Meditation","Coffee + admin (WhatsApp + email)","Deep work 1","Break","Deep work 2","Go outside","Coffee + admin (round 2)"];
+  try{
+    if(!folderId)await ensureFolder();
+    const q=encodeURIComponent("'"+folderId+"' in parents and trashed=false and name contains 'plan-'");
+    const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,name)&pageSize=1000");const j=await r.json();
+    for(const f of (j.files||[])){
+      try{
+        const rr=await dapi("https://www.googleapis.com/drive/v3/files/"+f.id+"?alt=media");const d=await rr.json();
+        const flex=(d.blocks||[]).filter(b=>!b.anchor);
+        const names=flex.map(b=>b.name);
+        const isOld=names.length===OLD.length && names.every((n,i)=>n===OLD[i]) && flex.every(b=>!b.done);
+        if(isOld){const anchors=(d.blocks||[]).filter(b=>b.anchor);d.blocks=DEFAULTS().concat(anchors);
+          await dapi("https://www.googleapis.com/upload/drive/v3/files/"+f.id+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});}
+      }catch(e){}
+    }
+    localStorage.setItem("migDefaultsV2","1");
+  }catch(e){}
 }
 async function syncCalendar(iso){
   const ds=new Date(iso+"T00:00:00"), de=new Date(iso+"T23:59:59");
