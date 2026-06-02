@@ -149,11 +149,12 @@ let token=null, tokenClient=null, connected=false;
 let folderId=localStorage.getItem("plannerFolderId");if(folderId==="undefined"||folderId==="null"||!folderId)folderId=null;
 
 const DEFAULTS=()=>[
-  {cat:"routine",name:"Dishes + laundry (podcast)",dur:30},
-  {cat:"routine",name:"Shower + dressed",dur:20},
-  {cat:"body",name:"Yoga",dur:20},
-  {cat:"body",name:"Meditation",dur:10},
-  {cat:"admin",name:"Coffee + admin (WhatsApp + email)",dur:20},
+  {cat:"routine",name:"Wake up",dur:15},
+  {cat:"body",name:"Yoga",dur:40},
+  {cat:"body",name:"Meditation",dur:5},
+  {cat:"routine",name:"Shower + dress",dur:20},
+  {cat:"routine",name:"House shit",dur:20},
+  {cat:"admin",name:"Coffee + admin",dur:25},
   {cat:"deep",name:"Deep work 1",dur:90},
   {cat:"break",name:"Break",dur:15},
   {cat:"deep",name:"Deep work 2",dur:90},
