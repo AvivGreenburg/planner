@@ -136,9 +136,9 @@ const KEY="aviv-planner-v2";
 const PXMIN=1.6, MINH=40;
 /* ---- Google Drive ---- */
 const CLIENT_ID="956137933872-mumkpho57vt0fspuluj8ahq9p6vf90gt.apps.googleusercontent.com";
-const FOLDER_ID="11S_GerIakxHHD1jcZmY37a6eesavRG33";
-const SCOPE="https://www.googleapis.com/auth/drive";
+const SCOPE="https://www.googleapis.com/auth/drive.file"; // app can ONLY touch files/folders it creates
 let token=null, tokenClient=null, connected=false;
+let folderId=localStorage.getItem("plannerFolderId")||null;
 
 const DEFAULTS=()=>[
   {cat:"routine",name:"Dishes + laundry (podcast)",dur:30},
@@ -186,24 +186,33 @@ function setDriveUI(){const b=document.getElementById("drive");b.textContent=con
 function initGIS(){
   if(!(window.google&&google.accounts&&google.accounts.oauth2)){return setTimeout(initGIS,300);}
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,
-    callback:r=>{if(r&&r.access_token){token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();openDate(cur);}}});
+    callback:async r=>{if(r&&r.access_token){token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();try{await ensureFolder();}catch(e){} openDate(cur);}}});
   if(localStorage.getItem("driveOn")==="1"){try{tokenClient.requestAccessToken({prompt:""});}catch(e){}}
 }
 function connectDrive(){if(tokenClient)tokenClient.requestAccessToken({prompt:connected?"":"consent"});else initGIS();}
 async function dapi(url,opts){opts=opts||{};opts.headers=Object.assign({Authorization:"Bearer "+token},opts.headers||{});const r=await fetch(url,opts);if(r.status===401){connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("auth");}return r;}
-async function driveFind(date){const q=encodeURIComponent("name='plan-"+date+".json' and '"+FOLDER_ID+"' in parents and trashed=false");const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,name)&spaces=drive");const j=await r.json();return (j.files&&j.files[0])?j.files[0].id:null;}
+async function ensureFolder(){
+  if(folderId) return folderId;
+  const q=encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='Daily Planner' and trashed=false");
+  const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)&spaces=drive");const j=await r.json();
+  if(j.files&&j.files[0]){folderId=j.files[0].id;}
+  else{const r2=await dapi("https://www.googleapis.com/drive/v3/files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"Daily Planner",mimeType:"application/vnd.google-apps.folder"})});const j2=await r2.json();folderId=j2.id;}
+  localStorage.setItem("plannerFolderId",folderId);return folderId;
+}
+async function driveFind(date){if(!folderId)await ensureFolder();const q=encodeURIComponent("name='plan-"+date+".json' and '"+folderId+"' in parents and trashed=false");const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,name)&spaces=drive");const j=await r.json();return (j.files&&j.files[0])?j.files[0].id:null;}
 async function driveRead(date){const id=await driveFind(date);if(!id)return null;const r=await dapi("https://www.googleapis.com/drive/v3/files/"+id+"?alt=media");const d=await r.json();d.__fileId=id;return d;}
 async function driveWrite(date,obj){
   const body=JSON.stringify(stripMeta(obj));
   let id=obj.__fileId||await driveFind(date);
   if(id){await dapi("https://www.googleapis.com/upload/drive/v3/files/"+id+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body});}
-  else{const meta={name:"plan-"+date+".json",parents:[FOLDER_ID]};const b="bnd"+Date.now();
+  else{if(!folderId)await ensureFolder();const meta={name:"plan-"+date+".json",parents:[folderId]};const b="bnd"+Date.now();
     const multipart="--"+b+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)+"\r\n--"+b+"\r\nContent-Type: application/json\r\n\r\n"+body+"\r\n--"+b+"--";
     const r=await dapi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+b},body:multipart});
     const j=await r.json();obj.__fileId=j.id;}
 }
 async function driveLatestPrior(date){
-  const q=encodeURIComponent("'"+FOLDER_ID+"' in parents and trashed=false and name contains 'plan-'");
+  if(!folderId)await ensureFolder();
+  const q=encodeURIComponent("'"+folderId+"' in parents and trashed=false and name contains 'plan-'");
   const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(name)&pageSize=1000");
   const j=await r.json();
   const ds=(j.files||[]).map(f=>(f.name.match(/plan-(\d{4}-\d{2}-\d{2})\.json/)||[])[1]).filter(s=>s&&s<date).sort();
