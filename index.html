@@ -138,7 +138,7 @@ const PXMIN=1.6, MINH=40;
 const CLIENT_ID="956137933872-mumkpho57vt0fspuluj8ahq9p6vf90gt.apps.googleusercontent.com";
 const SCOPE="https://www.googleapis.com/auth/drive.file"; // app can ONLY touch files/folders it creates
 let token=null, tokenClient=null, connected=false;
-let folderId=localStorage.getItem("plannerFolderId")||null;
+let folderId=localStorage.getItem("plannerFolderId");if(folderId==="undefined"||folderId==="null"||!folderId)folderId=null;
 
 const DEFAULTS=()=>[
   {cat:"routine",name:"Dishes + laundry (podcast)",dur:30},
@@ -197,6 +197,7 @@ async function ensureFolder(){
   const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)&spaces=drive");const j=await r.json();
   if(j.files&&j.files[0]){folderId=j.files[0].id;}
   else{const r2=await dapi("https://www.googleapis.com/drive/v3/files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"Daily Planner",mimeType:"application/vnd.google-apps.folder"})});const j2=await r2.json();folderId=j2.id;}
+  if(!folderId){throw new Error("folder create failed");}
   localStorage.setItem("plannerFolderId",folderId);return folderId;
 }
 async function driveFind(date){if(!folderId)await ensureFolder();const q=encodeURIComponent("name='plan-"+date+".json' and '"+folderId+"' in parents and trashed=false");const r=await dapi("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id,name)&spaces=drive");const j=await r.json();return (j.files&&j.files[0])?j.files[0].id:null;}
@@ -218,7 +219,7 @@ async function driveLatestPrior(date){
   const ds=(j.files||[]).map(f=>(f.name.match(/plan-(\d{4}-\d{2}-\d{2})\.json/)||[])[1]).filter(s=>s&&s<date).sort();
   return ds.length?ds[ds.length-1]:null;
 }
-let dst;function scheduleDriveSave(){clearTimeout(dst);dst=setTimeout(()=>{driveWrite(cur,day).catch(()=>{});},1200);}
+let dst;function scheduleDriveSave(){clearTimeout(dst);dst=setTimeout(()=>{driveWrite(cur,day).then(()=>{const f=document.getElementById("foot");f.textContent="synced to Drive ☁︎";}).catch(e=>{const f=document.getElementById("foot");f.textContent="⚠️ Drive save failed — saved on device";});},1200);}
 
 function save(){saveLocal();if(connected)scheduleDriveSave();flash();}
 
@@ -230,7 +231,7 @@ async function openDate(iso){
       let d=await driveRead(iso);
       if(!d){const prior=await driveLatestPrior(iso);const prev=prior?await driveRead(prior):null;d=buildDay(iso,prev);await driveWrite(iso,d);}
       day=d;saveLocal();renderAll();return;
-    }catch(e){/* fall back to local */}
+    }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ Drive read failed — showing device copy";}
   }
   day=getDayLocal(iso);renderAll();
 }
