@@ -123,6 +123,7 @@
   <div class="plantitle">🕐 The Plan</div>
   <div id="plan"></div>
   <button class="addbtn" id="add">+ add block</button>
+  <button class="addbtn" id="resetday" style="margin-left:16px;color:#b9b2a6;font-weight:500;">↻ reset to default routine</button>
 
   <div class="divider"></div>
   <div class="label">🏆 Wins / reflections</div>
@@ -382,6 +383,7 @@ plan.addEventListener("blur",e=>{
 },true);
 plan.addEventListener("keydown",e=>{if(e.target.dataset.act==="dur"&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
 document.getElementById("add").onclick=()=>{day.blocks.push({cat:"deep",name:"New block",dur:30,done:false,id:rid()});renderPlan();save();const n=plan.querySelector(".block:last-of-type .name");n&&n.focus();};
+document.getElementById("resetday").onclick=()=>{if(!confirm("Replace this day's routine blocks with the default? (keeps appointments, TODO and notes)"))return;const anchors=day.blocks.filter(b=>b.anchor);day.blocks=DEFAULTS().concat(anchors);renderPlan();save();};
 
 /* fluid drag */
 let drag=null;
