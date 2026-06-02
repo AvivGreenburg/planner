@@ -190,7 +190,7 @@ function initGIS(){
   if(localStorage.getItem("driveOn")==="1"){try{tokenClient.requestAccessToken({prompt:""});}catch(e){}}
 }
 function connectDrive(){if(tokenClient)tokenClient.requestAccessToken({prompt:connected?"":"consent"});else initGIS();}
-async function dapi(url,opts){opts=opts||{};opts.headers=Object.assign({Authorization:"Bearer "+token},opts.headers||{});const r=await fetch(url,opts);if(r.status===401){connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("auth");}return r;}
+async function dapi(url,opts){opts=opts||{};opts.headers=Object.assign({Authorization:"Bearer "+token},opts.headers||{});const r=await fetch(url,opts);if(r.status===401){connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("401 auth expired");}if(!r.ok){let t="";try{t=await r.text();}catch(e){}throw new Error("HTTP "+r.status+" "+t.slice(0,200));}return r;}
 async function ensureFolder(){
   if(folderId) return folderId;
   const q=encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='Daily Planner' and trashed=false");
@@ -219,7 +219,7 @@ async function driveLatestPrior(date){
   const ds=(j.files||[]).map(f=>(f.name.match(/plan-(\d{4}-\d{2}-\d{2})\.json/)||[])[1]).filter(s=>s&&s<date).sort();
   return ds.length?ds[ds.length-1]:null;
 }
-let dst;function scheduleDriveSave(){clearTimeout(dst);dst=setTimeout(()=>{driveWrite(cur,day).then(()=>{const f=document.getElementById("foot");f.textContent="synced to Drive ☁︎";}).catch(e=>{const f=document.getElementById("foot");f.textContent="⚠️ Drive save failed — saved on device";});},1200);}
+let dst;function scheduleDriveSave(){clearTimeout(dst);dst=setTimeout(()=>{driveWrite(cur,day).then(()=>{const f=document.getElementById("foot");f.textContent="synced to Drive ☁︎";}).catch(e=>{const f=document.getElementById("foot");f.textContent="⚠️ "+(e&&e.message?e.message:"save failed");});},1200);}
 
 function save(){saveLocal();if(connected)scheduleDriveSave();flash();}
 
@@ -231,7 +231,7 @@ async function openDate(iso){
       let d=await driveRead(iso);
       if(!d){const prior=await driveLatestPrior(iso);const prev=prior?await driveRead(prior):null;d=buildDay(iso,prev);await driveWrite(iso,d);}
       day=d;saveLocal();renderAll();return;
-    }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ Drive read failed — showing device copy";}
+    }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"read failed");}
   }
   day=getDayLocal(iso);renderAll();
 }
