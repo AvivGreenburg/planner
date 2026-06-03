@@ -152,7 +152,7 @@ const PXMIN=1.6, MINH=40;
 /* ---- Google Drive ---- */
 const CLIENT_ID="956137933872-mumkpho57vt0fspuluj8ahq9p6vf90gt.apps.googleusercontent.com";
 const SCOPE="https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.readonly"; // own files + read-only calendar
-let token=null, tokenClient=null, connected=false;
+let token=null, tokenClient=null, connected=false, pendingResolve=null;
 let folderId=localStorage.getItem("plannerFolderId");if(folderId==="undefined"||folderId==="null"||!folderId)folderId=null;
 
 const DEFAULTS=()=>[
@@ -202,11 +202,24 @@ function setDriveUI(){const b=document.getElementById("drive");b.textContent=con
 function initGIS(){
   if(!(window.google&&google.accounts&&google.accounts.oauth2)){return setTimeout(initGIS,300);}
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,
-    callback:async r=>{if(r&&r.access_token){token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();try{await ensureFolder();await migrateDefaults();}catch(e){} openDate(cur);}}});
+    callback:async r=>{
+      if(r&&r.access_token){
+        token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();
+        if(pendingResolve){const f=pendingResolve;pendingResolve=null;f(true);return;}
+        try{await ensureFolder();await migrateDefaults();}catch(e){} openDate(cur);
+      } else if(pendingResolve){const f=pendingResolve;pendingResolve=null;f(false);}
+    }});
   if(localStorage.getItem("driveOn")==="1"){try{tokenClient.requestAccessToken({prompt:""});}catch(e){}}
 }
 function connectDrive(){if(tokenClient)tokenClient.requestAccessToken({prompt:connected?"":"consent"});else initGIS();}
-async function dapi(url,opts){opts=opts||{};opts.headers=Object.assign({Authorization:"Bearer "+token},opts.headers||{});const r=await fetch(url,opts);if(r.status===401){connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("401 auth expired");}if(!r.ok){let t="";try{t=await r.text();}catch(e){}throw new Error("HTTP "+r.status+" "+t.slice(0,200));}return r;}
+function refreshToken(){return new Promise((res,rej)=>{if(!tokenClient)return rej(new Error("no client"));pendingResolve=res;try{tokenClient.requestAccessToken({prompt:""});}catch(e){pendingResolve=null;rej(e);}setTimeout(()=>{if(pendingResolve){pendingResolve=null;rej(new Error("refresh timeout"));}},9000);});}
+setInterval(()=>{if(connected)refreshToken().catch(()=>{});},50*60*1000);
+async function dapi(url,opts,_retry){opts=opts||{};opts.headers=Object.assign({},opts.headers||{},{Authorization:"Bearer "+token});const r=await fetch(url,opts);
+  if(r.status===401){
+    if(!_retry){try{await refreshToken();return await dapi(url,opts,true);}catch(e){}}
+    connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("401 auth expired");
+  }
+  if(!r.ok){let t="";try{t=await r.text();}catch(e){}throw new Error("HTTP "+r.status+" "+t.slice(0,200));}return r;}
 async function ensureFolder(){
   if(folderId) return folderId;
   const q=encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='Daily Planner' and trashed=false");
@@ -406,8 +419,10 @@ plan.addEventListener("pointerdown",e=>{
   const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
   const nm=e.target.closest('[data-act="name"]');if(nm&&nm.getAttribute("contenteditable")==="true")return;
   press={el,x:e.clientX,y:e.clientY,pid:e.pointerId,dragging:false};
-  press.timer=setTimeout(startDrag,320);
+  press.timer=setTimeout(startDrag,200);
 });
+// block the page from scrolling while a drag is active (iOS needs a non-passive touchmove)
+document.addEventListener("touchmove",e=>{if(press&&press.dragging)e.preventDefault();},{passive:false});
 function startDrag(){
   if(!press)return;press.dragging=true;
   const el=press.el;el.classList.add("dragging");
