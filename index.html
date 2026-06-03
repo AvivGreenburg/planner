@@ -67,7 +67,7 @@
   .block.dragging{box-shadow:0 12px 28px rgba(90,80,110,.28);z-index:30;transition:none;opacity:.97;}
   .block.done{filter:saturate(.45) opacity(.85);}
   .block.done .name{text-decoration:line-through;color:var(--muted);}
-  .tick{position:absolute;left:-60px;top:6px;width:42px;text-align:left;font-size:11px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .tick{position:absolute;left:-60px;top:6px;width:46px;text-align:left;font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
   .dot{position:absolute;left:-18px;top:11px;width:10px;height:10px;border-radius:50%;background:var(--catcolor,#ccc);box-shadow:0 0 0 3px var(--bg);}
   .check{width:21px;height:21px;border:1.7px solid #beb8ab;border-radius:6px;flex:0 0 auto;cursor:pointer;margin-top:1px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);transition:.12s;}
   .check svg{width:12px;height:12px;opacity:0;}
@@ -77,14 +77,20 @@
   .name{font-size:14.5px;font-weight:500;outline:none;line-height:1.25;word-break:break-word;}
   .name:focus{background:rgba(255,255,255,.7);border-radius:4px;}
   .meta{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:11.5px;color:var(--muted);}
-  .dur{outline:none;}
+  .dur{outline:none;user-select:text;-webkit-user-select:text;}
   .catbtn{border:none;background:rgba(255,255,255,.55);border-radius:20px;padding:1px 8px;font-size:11px;color:#6b665d;cursor:pointer;}
   .grip{flex:0 0 auto;width:26px;align-self:stretch;display:flex;align-items:center;justify-content:center;color:#cfc8bb;font-size:15px;cursor:grab;touch-action:none;user-select:none;}
   .del{position:absolute;right:6px;top:6px;border:none;background:none;color:#d3a0a0;font-size:16px;cursor:pointer;opacity:0;transition:.12s;}
   .block:hover .del{opacity:1;}
-  .resize{position:absolute;left:0;right:0;bottom:0;height:12px;cursor:ns-resize;touch-action:none;border-radius:0 0 12px 12px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;}
-  .resize:after{content:"";width:30px;height:3px;border-radius:3px;background:rgba(0,0,0,.12);}
+  .resize{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:66px;height:15px;cursor:ns-resize;touch-action:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;}
+  .resize:after{content:"";width:34px;height:4px;border-radius:3px;background:rgba(0,0,0,.16);}
   .resize:active:after{background:var(--catcolor,#999);}
+  .block{user-select:none;-webkit-user-select:none;}
+  .name[contenteditable="true"]{user-select:text;-webkit-user-select:text;cursor:text;background:rgba(255,255,255,.7);border-radius:4px;}
+  .name:empty:before{content:"New task";color:#c3bdb3;}
+  .stepbtn{border:none;background:#fff;border-radius:7px;width:26px;height:24px;font-size:15px;color:#7b756b;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06);vertical-align:middle;}
+  .stepbtn:active{background:#f0ede7;}
+  #startval{font-size:16px;font-weight:700;color:var(--ink);margin:0 9px;font-variant-numeric:tabular-nums;vertical-align:middle;}
   .addbtn{margin-top:8px;font-size:14px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0;}
   .mini{font-size:14px;color:var(--ink);padding:6px 8px;outline:none;background:rgba(255,255,255,.6);border-radius:12px;min-height:40px;}
   .mini:empty:before{content:attr(data-ph);color:#c3bdb3;}
@@ -105,7 +111,7 @@
     <button class="navbtn" id="next">›</button>
   </div>
   <button class="today-btn" id="todayBtn">jump to today</button>
-  <div class="startrow">starts <input id="start" value="08:00" inputmode="numeric"> · times flow from here</div>
+  <div class="startrow">starts <button class="stepbtn" id="startminus">−</button><span id="startval">08:00</span><button class="stepbtn" id="startplus">＋</button> · times flow from here</div>
   <div class="drivebar"><button class="drivebtn" id="drive">☁︎ Connect Drive</button></div>
 
   <div class="allday" id="allday"></div>
@@ -274,16 +280,17 @@ function save(){saveLocal();if(connected)scheduleDriveSave();flash();}
 /* ---------- open a date (Drive-aware) ---------- */
 async function openDate(iso){
   cur=iso;
-  if(connected){
-    try{
-      let d=await driveRead(iso);
-      if(!d){const prior=await driveLatestPrior(iso);const prev=prior?await driveRead(prior):null;d=buildDay(iso,prev);await driveWrite(iso,d);}
-      day=d;
-      try{const cal=await syncCalendar(iso);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;driveWrite(iso,day).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
-      saveLocal();renderAll();return;
-    }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"read failed");}
-  }
-  day=getDayLocal(iso);renderAll();
+  day=getDayLocal(iso);renderAll();          // instant from local cache
+  if(!connected)return;
+  try{
+    let d=await driveRead(iso);
+    if(!d){const prior=await driveLatestPrior(iso);const prev=prior?await driveRead(prior):null;d=buildDay(iso,prev);await driveWrite(iso,d);}
+    if(cur!==iso)return;                      // user already switched days
+    day=d;
+    try{const cal=await syncCalendar(iso);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;driveWrite(iso,day).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
+    if(cur!==iso)return;
+    saveLocal();renderAll();
+  }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"read failed");}
 }
 
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -297,7 +304,7 @@ function renderHeader(){
   document.getElementById("d1").textContent=(isToday?"Today · ":"")+days[d.getDay()];
   document.getElementById("d2").textContent=mon[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();
   document.getElementById("todayBtn").style.visibility=isToday?"hidden":"visible";
-  document.getElementById("start").value=day.start;
+  document.getElementById("startval").textContent=day.start;
 }
 /* ---------- checklists ---------- */
 function renderList(key){
@@ -362,68 +369,94 @@ function renderPlan(){
       const c=CATS[b.cat]||CATS.deep;
       el.className="block"+(b.done?" done":"");
       el.style.setProperty("--catcolor",c.color);el.style.setProperty("--catbg",c.bg);
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+CHK+'<div class="bbody"><div class="name" contenteditable data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><div class="grip" data-act="grip">⋮⋮</div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+CHK+'<div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
     }
     plan.appendChild(el);
   });
 }
 function idx(id){return day.blocks.findIndex(b=>b.id===id);}
 const plan=document.getElementById("plan");
+let suppressClick=false;
+function placeCaretEnd(node){try{const r=document.createRange();r.selectNodeContents(node);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);}catch(e){}}
+
 plan.addEventListener("click",e=>{
-  const t=e.target.closest("[data-act]");if(!t)return;if(["grip","resize"].includes(t.dataset.act))return;
-  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];if(!b)return;
+  if(suppressClick)return;
+  const t=e.target.closest("[data-act]");if(!t)return;if(t.dataset.act==="resize")return;
+  const el=e.target.closest(".block");const b=el&&day.blocks[idx(el.dataset.id)];if(!b)return;
   if(t.dataset.act==="check"){b.done=!b.done;el.classList.toggle("done");save();}
-  if(t.dataset.act==="del"){day.blocks.splice(idx(el.dataset.id),1);renderPlan();save();}
-  if(t.dataset.act==="cat"){b.cat=ORDER[(ORDER.indexOf(b.cat)+1)%ORDER.length];renderPlan();save();}
+  else if(t.dataset.act==="del"){day.blocks.splice(idx(el.dataset.id),1);renderPlan();save();}
+  else if(t.dataset.act==="cat"){b.cat=ORDER[(ORDER.indexOf(b.cat)+1)%ORDER.length];renderPlan();save();}
+  else if(t.dataset.act==="name"&&!b.anchor){if(t.getAttribute("contenteditable")!=="true"){t.setAttribute("contenteditable","true");t.focus();placeCaretEnd(t);}}
 });
 plan.addEventListener("blur",e=>{
-  const t=e.target.closest("[data-act]");if(!t)return;const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];if(!b)return;
-  if(t.dataset.act==="name"){b.name=t.textContent.trim();save();}
+  const t=e.target.closest("[data-act]");if(!t)return;const el=e.target.closest(".block");const b=el&&day.blocks[idx(el.dataset.id)];if(!b)return;
+  if(t.dataset.act==="name"){b.name=t.textContent.trim();t.setAttribute("contenteditable","false");save();}
   if(t.dataset.act==="dur"){b.dur=Math.max(5,parseDur(t.textContent));renderPlan();save();}
 },true);
-plan.addEventListener("keydown",e=>{if(e.target.dataset.act==="dur"&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
-document.getElementById("add").onclick=()=>{day.blocks.push({cat:"deep",name:"New block",dur:30,done:false,id:rid()});renderPlan();save();const n=plan.querySelector(".block:last-of-type .name");n&&n.focus();};
+plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
+document.getElementById("add").onclick=()=>{day.blocks.push({cat:"deep",name:"",dur:30,done:false,id:rid()});renderPlan();save();const n=[...plan.querySelectorAll('.block .name')].pop();if(n){n.setAttribute("contenteditable","true");n.focus();}};
 document.getElementById("resetday").onclick=()=>{if(!confirm("Replace this day's routine blocks with the default? (keeps appointments, TODO and notes)"))return;const anchors=day.blocks.filter(b=>b.anchor);day.blocks=DEFAULTS().concat(anchors);renderPlan();save();};
 
-/* fluid drag */
-let drag=null;
+/* long-press anywhere = drag reorder (flexible only); quick tap = controls / edit */
+let press=null;
 plan.addEventListener("pointerdown",e=>{
-  const grip=e.target.closest('[data-act="grip"]');if(!grip)return;e.preventDefault();
-  const el=e.target.closest(".block");const els=[...plan.querySelectorAll(".block")];const rects=els.map(x=>x.getBoundingClientRect());
-  drag={el,els,rects,from:els.indexOf(el),startY:e.clientY,h:el.getBoundingClientRect().height+6,to:els.indexOf(el)};
-  el.classList.add("dragging");grip.setPointerCapture(e.pointerId);
+  if(e.button&&e.button!==0)return;
+  if(e.target.closest('[data-act="resize"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
+  const el=e.target.closest(".block");if(!el)return;
+  const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
+  const nm=e.target.closest('[data-act="name"]');if(nm&&nm.getAttribute("contenteditable")==="true")return;
+  press={el,x:e.clientX,y:e.clientY,pid:e.pointerId,dragging:false};
+  press.timer=setTimeout(startDrag,320);
 });
+function startDrag(){
+  if(!press)return;press.dragging=true;
+  const el=press.el;el.classList.add("dragging");
+  press.els=[...plan.querySelectorAll(".block")];press.rects=press.els.map(x=>x.getBoundingClientRect());
+  press.from=press.els.indexOf(el);press.to=press.from;press.h=el.getBoundingClientRect().height+6;
+  try{el.setPointerCapture(press.pid);}catch(e){}
+  if(navigator.vibrate){try{navigator.vibrate(8);}catch(e){}}
+}
 plan.addEventListener("pointermove",e=>{
-  if(!drag)return;e.preventDefault();const dy=e.clientY-drag.startY;drag.el.style.transform="translateY("+dy+"px)";
-  const center=drag.rects[drag.from].top+drag.rects[drag.from].height/2+dy;let to=0;
-  drag.rects.forEach((r,i)=>{if(i!==drag.from){if(r.top+r.height/2<center)to++;}});drag.to=to;
-  drag.els.forEach((el,i)=>{if(i===drag.from)return;let s=0;if(drag.from<to&&i>drag.from&&i<=to)s=-drag.h;else if(drag.from>to&&i>=to&&i<drag.from)s=drag.h;el.style.transform=s?"translateY("+s+"px)":"";});
+  if(!press)return;
+  if(!press.dragging){if(Math.abs(e.clientX-press.x)>10||Math.abs(e.clientY-press.y)>10){clearTimeout(press.timer);press=null;}return;}
+  e.preventDefault();
+  const dy=e.clientY-press.y;press.el.style.transform="translateY("+dy+"px)";
+  const center=press.rects[press.from].top+press.rects[press.from].height/2+dy;let to=0;
+  press.rects.forEach((r,i)=>{if(i!==press.from&&r.top+r.height/2<center)to++;});press.to=to;
+  press.els.forEach((x,i)=>{if(i===press.from)return;let s=0;if(press.from<to&&i>press.from&&i<=to)s=-press.h;else if(press.from>to&&i>=to&&i<press.from)s=press.h;x.style.transform=s?"translateY("+s+"px)":"";});
 });
-plan.addEventListener("pointerup",()=>{
-  if(!drag)return;drag.els.forEach(el=>{el.style.transform="";});drag.el.classList.remove("dragging");
-  const domIds=[...plan.querySelectorAll(".block")].map(el=>el.dataset.id);
-  const byId={};day.blocks.forEach(b=>byId[b.id]=b);
-  const newFlex=domIds.map(id=>byId[id]).filter(b=>b&&!b.anchor);
-  const anchors=day.blocks.filter(b=>b.anchor);
-  day.blocks=[...newFlex,...anchors];
-  drag=null;renderPlan();save();
-});
-/* duration resize */
+function endPress(){
+  if(!press)return;clearTimeout(press.timer);
+  if(press.dragging){
+    press.els.forEach(x=>x.style.transform="");press.el.classList.remove("dragging");
+    const arr=press.els.map(x=>x.dataset.id);const [m]=arr.splice(press.from,1);arr.splice(press.to,0,m);
+    const byId={};day.blocks.forEach(b=>byId[b.id]=b);
+    const newFlex=arr.map(id=>byId[id]).filter(b=>b&&!b.anchor);const anchors=day.blocks.filter(b=>b.anchor);
+    day.blocks=[...newFlex,...anchors];renderPlan();save();
+    suppressClick=true;setTimeout(()=>suppressClick=false,60);
+  }
+  press=null;
+}
+plan.addEventListener("pointerup",endPress);
+plan.addEventListener("pointercancel",endPress);
+
+/* duration resize (bottom-center handle only) */
 let rez=null;
 plan.addEventListener("pointerdown",e=>{
   const h=e.target.closest('[data-act="resize"]');if(!h)return;e.preventDefault();
-  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];rez={el,b,startY:e.clientY,startDur:b.dur};h.setPointerCapture(e.pointerId);
+  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];rez={el,b,startY:e.clientY,startDur:b.dur};try{h.setPointerCapture(e.pointerId);}catch(x){}
 },true);
 plan.addEventListener("pointermove",e=>{
   if(!rez)return;e.preventDefault();let nd=Math.round((rez.startDur+(e.clientY-rez.startY)/PXMIN)/5)*5;nd=Math.max(5,Math.min(600,nd));
-  rez.b.dur=nd;rez.el.style.height=blockHeight(nd)+"px";rez.el.querySelector(".dur").textContent=nd+"m";
+  rez.b.dur=nd;rez.el.style.height=blockHeight(nd)+"px";const du=rez.el.querySelector(".dur");if(du)du.textContent=nd+"m";
   const sm={};computeSchedule(day.blocks,day.start).forEach(({b,start})=>sm[b.id]=start);
-  [...plan.querySelectorAll(".block")].forEach(el=>{const s=sm[el.dataset.id];if(s!=null)el.querySelector(".tick").textContent=fmt(s);});
+  [...plan.querySelectorAll(".block")].forEach(el=>{const s=sm[el.dataset.id];if(s!=null){const tk=el.querySelector(".tick");if(tk)tk.textContent=fmt(s);}});
 });
 plan.addEventListener("pointerup",()=>{if(rez){rez=null;renderPlan();save();}});
 
 /* editors */
-document.getElementById("start").addEventListener("change",e=>{day.start=e.target.value.trim();renderPlan();save();});
+document.getElementById("startminus").onclick=()=>{day.start=fmt(Math.max(0,toMin(day.start)-5));document.getElementById("startval").textContent=day.start;renderPlan();save();};
+document.getElementById("startplus").onclick=()=>{day.start=fmt(toMin(day.start)+5);document.getElementById("startval").textContent=day.start;renderPlan();save();};
 document.getElementById("dump").addEventListener("blur",e=>{day.dump=e.target.textContent.trim();save();});
 document.getElementById("wins").addEventListener("blur",e=>{day.wins=e.target.textContent.trim();save();});
 document.getElementById("drive").addEventListener("click",connectDrive);
