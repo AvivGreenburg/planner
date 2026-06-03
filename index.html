@@ -79,8 +79,8 @@
   .meta{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:11.5px;color:var(--muted);}
   .dur{outline:none;user-select:text;-webkit-user-select:text;}
   .catbtn{border:none;background:rgba(255,255,255,.55);border-radius:20px;padding:1px 8px;font-size:11px;color:#6b665d;cursor:pointer;}
-  .grip{flex:0 0 auto;width:26px;align-self:stretch;display:flex;align-items:center;justify-content:center;color:#cfc8bb;font-size:15px;cursor:grab;touch-action:none;user-select:none;}
-  .del{position:absolute;right:6px;top:6px;border:none;background:none;color:#d3a0a0;font-size:16px;cursor:pointer;opacity:0;transition:.12s;}
+  .grip{flex:0 0 auto;width:32px;align-self:stretch;display:flex;align-items:center;justify-content:center;color:#a8a296;font-size:21px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;margin:-8px 0 -8px -4px;}
+  .del{position:absolute;right:6px;top:5px;border:none;background:none;color:#d3a0a0;font-size:16px;cursor:pointer;opacity:.5;transition:.12s;}
   .block:hover .del{opacity:1;}
   .resize{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:66px;height:15px;cursor:ns-resize;touch-action:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;}
   .resize:after{content:"";width:34px;height:4px;border-radius:3px;background:rgba(0,0,0,.16);}
@@ -382,7 +382,7 @@ function renderPlan(){
       const c=CATS[b.cat]||CATS.deep;
       el.className="block"+(b.done?" done":"");
       el.style.setProperty("--catcolor",c.color);el.style.setProperty("--catbg",c.bg);
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+CHK+'<div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div>'+CHK+'<div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
     }
     plan.appendChild(el);
   });
@@ -412,9 +412,17 @@ document.getElementById("resetday").onclick=()=>{if(!confirm("Replace this day's
 
 /* long-press anywhere = drag reorder (flexible only); quick tap = controls / edit */
 let press=null;
+// dedicated handle: starts a drag immediately, on any pointer (the reliable mobile path)
+plan.addEventListener("pointerdown",e=>{
+  const g=e.target.closest('[data-act="grip"]');if(!g)return;e.preventDefault();
+  const el=e.target.closest(".block");if(!el)return;const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
+  press={el,x:e.clientX,y:e.clientY,pid:e.pointerId,dragging:false};startDrag();
+});
+// long-press anywhere: desktop (mouse) only — on touch the same gesture fights scrolling
 plan.addEventListener("pointerdown",e=>{
   if(e.button&&e.button!==0)return;
-  if(e.target.closest('[data-act="resize"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
+  if(e.pointerType==="touch")return;
+  if(e.target.closest('[data-act="grip"],[data-act="resize"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
   const el=e.target.closest(".block");if(!el)return;
   const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
   const nm=e.target.closest('[data-act="name"]');if(nm&&nm.getAttribute("contenteditable")==="true")return;
