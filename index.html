@@ -139,7 +139,7 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v26</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v27</div>
 </div>
 
 <script>
@@ -339,21 +339,22 @@ function renderHeader(){
   document.getElementById("startval").textContent=day.start;
 }
 /* ---------- checklists ---------- */
+function itemRow(it){
+  const row=document.createElement("div");
+  row.className="item"+(it.done?" done":"")+(it.noplan?" noplan":"")+(it.carried&&!it.done?" carried":"");
+  row.dataset.id=it.id;
+  row.innerHTML='<div class="box" data-act="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div><div class="txt" contenteditable data-act="txt">'+esc(it.text)+'</div><button class="x" data-act="x">×</button>';
+  return row;
+}
 function renderList(key){
   const host=document.getElementById(key);const arr=day[key];host.innerHTML="";
-  arr.forEach(it=>{
-    const row=document.createElement("div");
-    row.className="item"+(it.done?" done":"")+(it.noplan?" noplan":"")+(it.carried&&!it.done?" carried":"");
-    row.dataset.id=it.id;
-    row.innerHTML='<div class="box" data-act="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div><div class="txt" contenteditable data-act="txt">'+esc(it.text)+'</div><button class="x" data-act="x">×</button>';
-    host.appendChild(row);
-  });
+  arr.forEach(it=>host.appendChild(itemRow(it)));
   const add=document.createElement("div");add.className="additem";add.textContent=key==="achieve"?"＋ add goal":"+ add";
-  add.onclick=()=>{arr.push({id:rid(),text:"",done:false});renderList(key);updateCounts();const last=host.querySelector(".item:last-of-type .txt");last&&last.focus();};
+  add.onclick=()=>{const it={id:rid(),text:"",done:false};arr.push(it);const row=itemRow(it);host.insertBefore(row,add);updateCounts();const tx=row.querySelector(".txt");tx.focus();placeCaretEnd(tx);};
   host.appendChild(add);
   if(key==="achieve"){
     const add2=document.createElement("div");add2.className="additem";add2.style.color="#b9b2a6";add2.textContent="＋ note (no schedule)";
-    add2.onclick=()=>{arr.push({id:rid(),text:"",done:false,noplan:true});renderList(key);updateCounts();const last=host.querySelector(".item:last-of-type .txt");last&&last.focus();};
+    add2.onclick=()=>{const it={id:rid(),text:"",done:false,noplan:true};arr.push(it);const row=itemRow(it);host.insertBefore(row,add);updateCounts();const tx=row.querySelector(".txt");tx.focus();placeCaretEnd(tx);};
     host.appendChild(add2);
   }
   host.onclick=e=>{
