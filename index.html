@@ -94,6 +94,13 @@
   .addbtn{margin-top:8px;font-size:14px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0;}
   .mini{font-size:14px;color:var(--ink);padding:6px 8px;outline:none;background:rgba(255,255,255,.6);border-radius:12px;min-height:40px;}
   .mini:empty:before{content:attr(data-ph);color:#c3bdb3;}
+  .ins{position:relative;height:14px;margin:-5px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .ins:before{content:"＋ break";font-size:10px;color:#c8c2b6;background:var(--bg);padding:0 7px;border-radius:8px;opacity:.5;transition:.12s;}
+  .ins:hover:before,.ins:active:before{opacity:1;color:var(--accent);}
+  .nowline{position:absolute;left:6px;right:0;height:0;border-top:2px solid #d06a5a;z-index:20;pointer-events:none;display:none;}
+  .nowline:before{content:"";position:absolute;left:-3px;top:-4px;width:8px;height:8px;border-radius:50%;background:#d06a5a;}
+  .item.noplan .txt{color:#9a948a;}
+  .item.noplan .txt:after{content:"note";font-size:9px;color:#bdb6ab;background:#efece6;border-radius:8px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
   .block.anchor{border-left-style:dashed;}
   .block.anchor .name{font-weight:600;}
   .lock{font-size:11px;opacity:.65;margin-right:3px;}
@@ -119,23 +126,23 @@
   <div class="label">📥 Dump here</div>
   <div class="mini" id="dump" contenteditable data-ph="paste links / ideas…"></div>
 
-  <div class="label">✅ TODO <span class="cnt" id="goalsCnt"></span></div>
-  <div class="clist" id="goals"></div>
-
-  <div class="label">📌 Things to remember <span class="cnt" id="remCnt"></span></div>
-  <div class="clist" id="remember"></div>
+  <div class="label">🎯 To achieve today <span class="cnt" id="achieveCnt"></span></div>
+  <div class="clist" id="achieve"></div>
+  <div style="font-size:11px;color:#bdb6ab;margin-top:4px;">type a goal, press Enter — it's added to the plan with a sensible time</div>
 
   <div class="divider"></div>
   <div class="plantitle">🕐 The Plan</div>
   <div id="plan"></div>
   <button class="addbtn" id="add">+ add block</button>
-  <button class="addbtn" id="resetday" style="margin-left:16px;color:#b9b2a6;font-weight:500;">↻ reset to default routine</button>
+  <button class="addbtn" id="addbreak" style="margin-left:14px;">＋ break</button>
+  <button class="addbtn" id="resetday" style="margin-left:16px;color:#b9b2a6;font-weight:500;">↻ regenerate from to-achieve</button>
 
   <div class="divider"></div>
-  <div class="label">🏆 Wins / reflections</div>
-  <div class="mini" id="wins" contenteditable data-ph="fill in at night…"></div>
+  <div class="label">🌙 Reflection</div>
+  <div class="mini" id="wins" contenteditable data-ph="how did the day go?…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v23</div>
 </div>
 
 <script>
@@ -175,7 +182,7 @@ let day;
 
 function loadStore(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.days)return s;}catch(e){}return {days:{}};}
 function saveLocal(){store.days[cur]=stripMeta(day);localStorage.setItem(KEY,JSON.stringify(store));}
-function stripMeta(o){const c=JSON.parse(JSON.stringify(o));delete c.__fileId;return c;}
+function stripMeta(o){const c=JSON.parse(JSON.stringify(o));delete c.__fileId;delete c.syncedAt;return c;}
 function rid(){return Math.random().toString(36).slice(2,9);}
 function isoDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function shiftDate(iso,n){const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return isoDate(d);}
@@ -188,7 +195,7 @@ const parseDur=s=>{const m=String(s).match(/(\d+)/);return m?+m[1]:0;};
 /* ---------- day building ---------- */
 function carry(arr){return (arr||[]).filter(i=>!i.done).map(i=>({id:rid(),text:i.text,done:false,carried:true}));}
 function buildDay(iso,prev){
-  return {start:prev?prev.start:"08:00",blocks:DEFAULTS(),goals:prev?carry(prev.goals):[],remember:prev?carry(prev.remember):[],dump:"",wins:""};
+  return {start:prev?prev.start:"08:00",blocks:[],achieve:[],dump:"",wins:""};
 }
 function getDayLocal(iso){
   if(store.days[iso]) return store.days[iso];
@@ -206,18 +213,17 @@ function initGIS(){
       if(r&&r.access_token){
         token=r.access_token;connected=true;localStorage.setItem("driveOn","1");setDriveUI();
         if(pendingResolve){const f=pendingResolve;pendingResolve=null;f(true);return;}
-        try{await ensureFolder();await migrateDefaults();}catch(e){} openDate(cur);
+        try{await ensureFolder();}catch(e){} openDate(cur);
       } else if(pendingResolve){const f=pendingResolve;pendingResolve=null;f(false);}
     }});
   if(localStorage.getItem("driveOn")==="1"){try{tokenClient.requestAccessToken({prompt:""});}catch(e){}}
 }
-function connectDrive(){if(tokenClient)tokenClient.requestAccessToken({prompt:connected?"":"consent"});else initGIS();}
+function connectDrive(){if(connected){const f=document.getElementById("foot");if(f){f.textContent="already synced ☁︎";setTimeout(()=>{if(connected)f.textContent="synced to Drive ☁︎";},1200);}return;}if(tokenClient)tokenClient.requestAccessToken();else initGIS();}
 function refreshToken(){return new Promise((res,rej)=>{if(!tokenClient)return rej(new Error("no client"));pendingResolve=res;try{tokenClient.requestAccessToken({prompt:""});}catch(e){pendingResolve=null;rej(e);}setTimeout(()=>{if(pendingResolve){pendingResolve=null;rej(new Error("refresh timeout"));}},9000);});}
-setInterval(()=>{if(connected)refreshToken().catch(()=>{});},50*60*1000);
 async function dapi(url,opts,_retry){opts=opts||{};opts.headers=Object.assign({},opts.headers||{},{Authorization:"Bearer "+token});const r=await fetch(url,opts);
   if(r.status===401){
     if(!_retry){try{await refreshToken();return await dapi(url,opts,true);}catch(e){}}
-    connected=false;token=null;localStorage.removeItem("driveOn");setDriveUI();throw new Error("401 auth expired");
+    connected=false;token=null;setDriveUI();throw new Error("401 auth expired");
   }
   if(!r.ok){let t="";try{t=await r.text();}catch(e){}throw new Error("HTTP "+r.status+" "+t.slice(0,200));}return r;}
 async function ensureFolder(){
@@ -281,14 +287,15 @@ async function syncCalendar(iso){
       const s=new Date(ev.start.dateTime),e=new Date(ev.end.dateTime);
       const at=String(s.getHours()).padStart(2,"0")+":"+String(s.getMinutes()).padStart(2,"0");
       const dur=Math.max(5,Math.round((e-s)/60000));
-      anchors.push({id:"ev"+(ev.id||"").slice(-10),anchor:true,name:ev.summary||"(busy)",at,dur,done:false,eventId:ev.id,location:ev.location||""});
+      const online=!!(ev.hangoutLink||ev.conferenceData||/zoom|meet\.|teams|webex|https?:/i.test((ev.location||"")+" "+(ev.description||"")));
+      anchors.push({id:"ev"+(ev.id||"").slice(-10),anchor:true,name:ev.summary||"(busy)",at,dur,done:false,eventId:ev.id,location:ev.location||"",online:online});
     }
   });
   return {anchors,allday};
 }
-let dst;function scheduleDriveSave(){clearTimeout(dst);dst=setTimeout(()=>{driveWrite(cur,day).then(()=>{const f=document.getElementById("foot");f.textContent="synced to Drive ☁︎";}).catch(e=>{const f=document.getElementById("foot");f.textContent="⚠️ "+(e&&e.message?e.message:"save failed");});},1200);}
+let dst,savePending=false;function scheduleDriveSave(){savePending=true;clearTimeout(dst);dst=setTimeout(()=>{const u=day.updatedAt;driveWrite(cur,day).then(()=>{savePending=false;day.syncedAt=u;saveLocal();const f=document.getElementById("foot");f.textContent="synced to Drive ☁︎";}).catch(e=>{savePending=false;const f=document.getElementById("foot");f.textContent="⚠️ "+(e&&e.message?e.message:"save failed");});},1200);}
 
-function save(){saveLocal();if(connected)scheduleDriveSave();flash();}
+function save(){day.updatedAt=Date.now();saveLocal();if(connected)scheduleDriveSave();flash();}
 
 /* ---------- open a date (Drive-aware) ---------- */
 async function openDate(iso){
@@ -296,11 +303,26 @@ async function openDate(iso){
   day=getDayLocal(iso);renderAll();          // instant from local cache
   if(!connected)return;
   try{
+    const local=day;
     let d=await driveRead(iso);
-    if(!d){const prior=await driveLatestPrior(iso);const prev=prior?await driveRead(prior):null;d=buildDay(iso,prev);await driveWrite(iso,d);}
     if(cur!==iso)return;                      // user already switched days
-    day=d;
-    try{const cal=await syncCalendar(iso);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;driveWrite(iso,day).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
+    if(!d){                                   // nothing on Drive yet → push local up
+      day=local;await driveWrite(iso,day);day.syncedAt=day.updatedAt||0;
+    } else {
+      const lU=local.updatedAt||0, lS=local.syncedAt||0, dU=d.updatedAt||0;
+      const localEdited=lU>lS, driveChanged=dU!==lS;
+      if(localEdited && driveChanged){        // both sides changed → ask
+        const keepLocal=confirm("This day was also changed on another device.\n\nOK = keep THIS device's version\nCancel = use the other device's version");
+        if(keepLocal){day=local;await driveWrite(iso,day);day.syncedAt=day.updatedAt||0;}
+        else{day=d;day.updatedAt=dU;day.syncedAt=dU;}
+      } else if(localEdited){                  // only local edited offline → keep & push
+        day=local;await driveWrite(iso,day);day.syncedAt=day.updatedAt||0;
+      } else {                                 // local untouched → take Drive
+        day=d;day.updatedAt=dU;day.syncedAt=dU;
+      }
+    }
+    if(cur!==iso)return;
+    try{const cal=await syncCalendar(iso);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;const u=day.updatedAt||0;driveWrite(iso,day).then(()=>{day.syncedAt=u;saveLocal();}).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
     if(cur!==iso)return;
     saveLocal();renderAll();
   }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"read failed");}
@@ -324,14 +346,19 @@ function renderList(key){
   const host=document.getElementById(key);const arr=day[key];host.innerHTML="";
   arr.forEach(it=>{
     const row=document.createElement("div");
-    row.className="item"+(it.done?" done":"")+(it.carried&&!it.done?" carried":"");
+    row.className="item"+(it.done?" done":"")+(it.noplan?" noplan":"")+(it.carried&&!it.done?" carried":"");
     row.dataset.id=it.id;
     row.innerHTML='<div class="box" data-act="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div><div class="txt" contenteditable data-act="txt">'+esc(it.text)+'</div><button class="x" data-act="x">×</button>';
     host.appendChild(row);
   });
-  const add=document.createElement("div");add.className="additem";add.textContent="+ add";
+  const add=document.createElement("div");add.className="additem";add.textContent=key==="achieve"?"＋ add goal":"+ add";
   add.onclick=()=>{arr.push({id:rid(),text:"",done:false});renderList(key);updateCounts();const last=host.querySelector(".item:last-of-type .txt");last&&last.focus();};
   host.appendChild(add);
+  if(key==="achieve"){
+    const add2=document.createElement("div");add2.className="additem";add2.style.color="#b9b2a6";add2.textContent="＋ note (no schedule)";
+    add2.onclick=()=>{arr.push({id:rid(),text:"",done:false,noplan:true});renderList(key);updateCounts();const last=host.querySelector(".item:last-of-type .txt");last&&last.focus();};
+    host.appendChild(add2);
+  }
   host.onclick=e=>{
     const t=e.target.closest("[data-act]");if(!t)return;const row=e.target.closest(".item");if(!row)return;
     const it=arr.find(x=>x.id===row.dataset.id);
@@ -339,18 +366,79 @@ function renderList(key){
     if(t.dataset.act==="x"){arr.splice(arr.indexOf(it),1);renderList(key);updateCounts();save();}
   };
 }
-function setupListBlur(key){
-  document.getElementById(key).addEventListener("blur",e=>{
+function setupAchieve(){
+  const host=document.getElementById("achieve");const key="achieve";
+  host.addEventListener("blur",e=>{
     const t=e.target.closest('[data-act="txt"]');if(!t)return;const row=e.target.closest(".item");const arr=day[key];const it=arr.find(x=>x.id===row.dataset.id);
     if(it){it.text=t.textContent.trim();if(!it.text){arr.splice(arr.indexOf(it),1);renderList(key);}updateCounts();save();}
   },true);
+  host.addEventListener("keydown",e=>{
+    const t=e.target.closest('[data-act="txt"]');if(!t||e.key!=="Enter")return;
+    e.preventDefault();
+    const arr=day[key];const row=e.target.closest(".item");const it=arr.find(x=>x.id===row.dataset.id);if(!it)return;
+    it.text=t.textContent.trim();
+    if(it.text&&!it.noplan)addToPlan(it.text);
+    const ni={id:rid(),text:"",done:false,noplan:it.noplan||false};arr.splice(arr.indexOf(it)+1,0,ni);
+    save();renderAll();
+    const nn=document.querySelector('#achieve .item[data-id="'+ni.id+'"] .txt');if(nn)nn.focus();
+  });
 }
-function updateCounts(){
-  document.getElementById("goalsCnt").textContent=day.goals.filter(i=>!i.done).length?day.goals.filter(i=>!i.done).length+" open":"";
-  document.getElementById("remCnt").textContent=day.remember.filter(i=>!i.done).length?day.remember.filter(i=>!i.done).length+" open":"";
-}
+function updateCounts(){const a=document.getElementById("achieveCnt");if(a){const n=(day.achieve||[]).filter(i=>!i.done&&(i.text||"").trim()).length;a.textContent=n?n+" to do":"";}}
 /* ---------- plan ---------- */
 function blockHeight(dur){return Math.max(MINH,Math.round(dur*PXMIN));}
+/* ---- infer duration + category from free text (Hebrew + English) ---- */
+function infer(text){
+  const t=(text||"").toLowerCase();
+  const out=/\bout\b|outside|בחוץ/.test(t);
+  const map=[
+    [/yoga|יוגה/, 40, "body"],
+    [/meditat|מדיט|מדיס|מדט/, 10, "body"],
+    [/misu|מיסו|walk|טיול|dog|כלב/, 45, "body"],
+    [/product sense|\bsense\b|פרודקט|פרוסקט|פרודוקט|סנס/, 45, "deep"],
+    [/deep work|computer|מחשב|עבוד/, 90, "deep"],
+    [/coffee|קפה/, out?60:25, "admin"],
+    [/shower|מקלחת|להתלבש|dress|רחצה/, 20, "routine"],
+    [/wake|wakeup|השכמה|לקום|קימה/, 15, "routine"],
+  ];
+  for(const [re,dur,cat] of map){ if(re.test(t)) return {dur,cat}; }
+  return {dur:60,cat:"deep"};
+}
+function mk(name,dur,cat){return {id:rid(),name:name,dur:dur,cat:cat,done:false};}
+const isYoga=t=>/yoga|יוגה/i.test(t||"");
+/* insert breaks: 15-min after >1.5h non-break; 30-min once deep work passes 3h */
+function insertBreaks(arr){
+  const out=[];let sinceBreak=0,deepTotal=0,deepBreakDone=false;
+  for(const b of arr){
+    if(sinceBreak>=90){out.push(mk("Break",15,"break"));sinceBreak=0;}
+    out.push(b);
+    if(b.cat==="break"){sinceBreak=0;}
+    else{sinceBreak+=b.dur;if(b.cat==="deep"){deepTotal+=b.dur;if(!deepBreakDone&&deepTotal>=180){out.push(mk("Break",30,"break"));deepBreakDone=true;sinceBreak=0;}}}
+  }
+  return out;
+}
+/* full rebuild of The Plan from the To-achieve list + rules */
+function genPlan(){
+  const items=(day.achieve||[]).map(i=>(i.text||"").trim()).filter(Boolean);
+  let flex=[mk("Wake up",15,"routine")];
+  items.forEach(txt=>{const {dur,cat}=infer(txt);flex.push(mk(txt,dur,cat));if(isYoga(txt))flex.push(mk("Shower + dress",20,"routine"));});
+  flex=insertBreaks(flex);
+  const events=day.blocks.filter(b=>b.anchor&&!b.travel);
+  const travel=[];
+  events.forEach(a=>{if(a.online)return;const at=toMin(a.at);
+    travel.push({id:rid(),anchor:true,travel:true,name:"🚗 travel",at:fmt(Math.max(0,at-30)),dur:30,done:false,cat:"break"});
+    travel.push({id:rid(),anchor:true,travel:true,name:"🚗 travel",at:fmt(at+a.dur),dur:30,done:false,cat:"break"});
+  });
+  day.blocks=[...flex,...events,...travel];
+  day.wokeAdded=true;day.showerAdded=true;
+}
+/* incremental: add one achieve item to the plan (no full break pass) */
+function addToPlan(txt){
+  txt=(txt||"").trim();if(!txt)return;
+  if(!day.wokeAdded){if(!day.blocks.some(b=>/^wake/i.test(b.name)))day.blocks.unshift(mk("Wake up",15,"routine"));day.wokeAdded=true;}
+  const {dur,cat}=infer(txt);
+  day.blocks.push(mk(txt,dur,cat));
+  if(isYoga(txt)&&!day.showerAdded){day.blocks.push(mk("Shower + dress",20,"routine"));day.showerAdded=true;}
+}
 // place fixed anchors at their real time; flow flexible blocks around them (auto-resolve, no overlap)
 function computeSchedule(blocks,startStr){
   const rem=blocks.filter(b=>b.anchor).map(b=>({b,at:toMin(b.at)})).sort((x,y)=>x.at-y.at);
@@ -369,24 +457,42 @@ function computeSchedule(blocks,startStr){
   placed.sort((x,y)=>x.start-y.start);
   return placed;
 }
+function insEl(beforeId){const d=document.createElement("div");d.className="ins";d.dataset.before=beforeId||"";return d;}
 function renderPlan(){
   const plan=document.getElementById("plan");plan.innerHTML="";
   const CHK='<div class="check" data-act="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>';
   computeSchedule(day.blocks,day.start).forEach(({b,start})=>{
-    const el=document.createElement("div");el.dataset.id=b.id;el.style.height=blockHeight(b.dur)+"px";
+    const el=document.createElement("div");el.dataset.id=b.id;el.dataset.start=start;el.dataset.dur=b.dur;el.style.height=blockHeight(b.dur)+"px";
     if(b.anchor){
       el.className="block anchor"+(b.done?" done":"");
       el.style.setProperty("--catcolor","#8b94a3");el.style.setProperty("--catbg","#eceef1");
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+CHK+'<div class="bbody"><div class="name"><span class="lock">🔒</span>'+esc(b.name)+'</div><div class="meta"><span>'+fmt(start)+'–'+fmt(start+b.dur)+'</span>'+(b.location?'<span class="evloc">· 📍'+esc(b.location)+'</span>':'')+'</div></div><button class="del" data-act="del">×</button>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="bbody"><div class="name"><span class="lock">🔒</span>'+esc(b.name)+'</div><div class="meta"><span>'+fmt(start)+'–'+fmt(start+b.dur)+'</span>'+(b.location?'<span class="evloc">· 📍'+esc(b.location)+'</span>':'')+'</div></div><button class="del" data-act="del">×</button>';
     } else {
       const c=CATS[b.cat]||CATS.deep;
       el.className="block"+(b.done?" done":"");
       el.style.setProperty("--catcolor",c.color);el.style.setProperty("--catbg",c.bg);
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div>'+CHK+'<div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
     }
-    plan.appendChild(el);
+    plan.appendChild(insEl(b.id));plan.appendChild(el);
   });
+  plan.appendChild(insEl(""));
+  const nl=document.createElement("div");nl.className="nowline";plan.appendChild(nl);
+  updateNowLine();
 }
+function updateNowLine(){
+  const plan=document.getElementById("plan");if(!plan)return;const nl=plan.querySelector(".nowline");if(!nl)return;
+  if(cur!==isoDate(new Date())){nl.style.display="none";return;}
+  const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();
+  const blocks=[...plan.querySelectorAll(".block")];if(!blocks.length){nl.style.display="none";return;}
+  let top=null;
+  for(const el of blocks){const s=+el.dataset.start,d=+el.dataset.dur;
+    if(nowMin<s){top=el.offsetTop;break;}
+    if(nowMin<s+d){top=el.offsetTop+(nowMin-s)/Math.max(1,d)*el.offsetHeight;break;}
+  }
+  if(top===null){const last=blocks[blocks.length-1];top=last.offsetTop+last.offsetHeight;}
+  nl.style.display="block";nl.style.top=top+"px";
+}
+setInterval(updateNowLine,60000);
 function idx(id){return day.blocks.findIndex(b=>b.id===id);}
 const plan=document.getElementById("plan");
 let suppressClick=false;
@@ -401,14 +507,21 @@ plan.addEventListener("click",e=>{
   else if(t.dataset.act==="cat"){b.cat=ORDER[(ORDER.indexOf(b.cat)+1)%ORDER.length];renderPlan();save();}
   else if(t.dataset.act==="name"&&!b.anchor){if(t.getAttribute("contenteditable")!=="true"){t.setAttribute("contenteditable","true");t.focus();placeCaretEnd(t);}}
 });
+plan.addEventListener("click",e=>{
+  const ins=e.target.closest(".ins");if(!ins)return;
+  const bid=ins.dataset.before;const nb=mk("Break",15,"break");
+  if(!bid){day.blocks.push(nb);}else{const i=day.blocks.findIndex(b=>b.id===bid);day.blocks.splice(i<0?day.blocks.length:i,0,nb);}
+  renderPlan();save();
+});
 plan.addEventListener("blur",e=>{
   const t=e.target.closest("[data-act]");if(!t)return;const el=e.target.closest(".block");const b=el&&day.blocks[idx(el.dataset.id)];if(!b)return;
   if(t.dataset.act==="name"){b.name=t.textContent.trim();t.setAttribute("contenteditable","false");save();}
   if(t.dataset.act==="dur"){b.dur=Math.max(5,parseDur(t.textContent));renderPlan();save();}
 },true);
 plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
-document.getElementById("add").onclick=()=>{day.blocks.push({cat:"deep",name:"",dur:30,done:false,id:rid()});renderPlan();save();const n=[...plan.querySelectorAll('.block .name')].pop();if(n){n.setAttribute("contenteditable","true");n.focus();}};
-document.getElementById("resetday").onclick=()=>{if(!confirm("Replace this day's routine blocks with the default? (keeps appointments, TODO and notes)"))return;const anchors=day.blocks.filter(b=>b.anchor);day.blocks=DEFAULTS().concat(anchors);renderPlan();save();};
+document.getElementById("add").onclick=()=>{const nb={cat:"deep",name:"",dur:30,done:false,id:rid()};day.blocks.push(nb);renderPlan();save();const n=plan.querySelector('.block[data-id="'+nb.id+'"] .name');if(n){n.setAttribute("contenteditable","true");n.focus();}};
+document.getElementById("addbreak").onclick=()=>{day.blocks.push(mk("Break",15,"break"));renderPlan();save();const n=plan.querySelector(".block:last-of-type");if(n)n.scrollIntoView({block:"center",behavior:"smooth"});};
+document.getElementById("resetday").onclick=()=>{if(!confirm("Rebuild The Plan from your 'To achieve' list?\n(adds wake-up, durations, breaks and travel buffers — replaces the current plan blocks)"))return;genPlan();renderPlan();save();};
 
 /* long-press anywhere = drag reorder (flexible only); quick tap = controls / edit */
 let press=null;
@@ -488,16 +601,34 @@ document.getElementById("next").onclick=()=>openDate(shiftDate(cur,1));
 document.getElementById("todayBtn").onclick=()=>openDate(isoDate(new Date()));
 
 function renderAll(){
+  if(!day.achieve)day.achieve=[];
   renderHeader();
   const ad=document.getElementById("allday");ad.innerHTML="";(day.allday||[]).forEach(s=>{const d=document.createElement("div");d.className="ad";d.textContent="🗓 "+s;ad.appendChild(d);});
   document.getElementById("dump").textContent=day.dump||"";
   document.getElementById("wins").textContent=day.wins||"";
-  renderList("goals");renderList("remember");updateCounts();renderPlan();
+  renderList("achieve");updateCounts();renderPlan();
 }
-setupListBlur("goals");setupListBlur("remember");
+setupAchieve();
 day=getDayLocal(cur);   // instant local render
 renderAll();
 initGIS();              // then connect to Drive if previously authorized
+
+/* near-live sync: pull changes made on another device (safe — never while editing/dragging/saving) */
+async function pollSync(){
+  if(!connected||document.hidden)return;
+  if(press||rez||savePending)return;
+  if(document.activeElement&&document.activeElement.isContentEditable)return;
+  if((day.updatedAt||0)>(day.syncedAt||0))return;   // local has unsynced edits — don't overwrite
+  try{
+    const d=await driveRead(cur);if(!d)return;
+    if(JSON.stringify(stripMeta(d))!==JSON.stringify(stripMeta(day))){
+      d.__fileId=d.__fileId||day.__fileId;day=d;day.syncedAt=d.updatedAt||0;day.updatedAt=d.updatedAt||0;saveLocal();renderAll();
+      const f=document.getElementById("foot");if(f)f.textContent="updated from another device ☁︎";
+    }
+  }catch(e){}
+}
+setInterval(pollSync,15000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)pollSync();});
 </script>
 </body>
 </html>
