@@ -88,12 +88,13 @@
   .block{user-select:none;-webkit-user-select:none;}
   .name[contenteditable="true"]{user-select:text;-webkit-user-select:text;cursor:text;background:rgba(255,255,255,.7);border-radius:4px;}
   .name:empty:before{content:"New task";color:#c3bdb3;}
-  .stepbtn{border:none;background:#fff;border-radius:7px;width:26px;height:24px;font-size:15px;color:#7b756b;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06);vertical-align:middle;}
+  .startctl{display:inline-flex;align-items:center;gap:2px;background:#fff;border-radius:20px;padding:2px 4px;box-shadow:0 1px 2px rgba(0,0,0,.06);vertical-align:middle;margin-left:4px;}
+  .stepbtn{border:none;background:transparent;border-radius:50%;width:24px;height:24px;font-size:15px;color:#9a948a;cursor:pointer;line-height:1;}
   .stepbtn:active{background:#f0ede7;}
-  #startval{font-size:16px;font-weight:700;color:var(--ink);margin:0 9px;font-variant-numeric:tabular-nums;vertical-align:middle;}
+  #startval{font-size:15px;font-weight:700;color:var(--ink);margin:0 5px;font-variant-numeric:tabular-nums;min-width:42px;text-align:center;}
   .addbtn{margin-top:8px;font-size:14px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0;}
   .mini{font-size:14px;color:var(--ink);padding:6px 8px;outline:none;background:rgba(255,255,255,.6);border-radius:12px;min-height:40px;}
-  .mini:empty:before{content:attr(data-ph);color:#c3bdb3;}
+  .mini:empty:before{content:attr(data-ph);color:#c3bdb3;white-space:pre-line;}
   .ins{position:relative;height:14px;margin:-5px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .ins:before{content:"＋ break";font-size:10px;color:#c8c2b6;background:var(--bg);padding:0 7px;border-radius:8px;opacity:.5;transition:.12s;}
   .ins:hover:before,.ins:active:before{opacity:1;color:var(--accent);}
@@ -118,20 +119,16 @@
     <button class="navbtn" id="next">›</button>
   </div>
   <button class="today-btn" id="todayBtn">jump to today</button>
-  <div class="startrow">starts <button class="stepbtn" id="startminus">−</button><span id="startval">08:00</span><button class="stepbtn" id="startplus">＋</button> · times flow from here</div>
   <div class="drivebar"><button class="drivebtn" id="drive">☁︎ Connect Drive</button></div>
 
   <div class="allday" id="allday"></div>
-
-  <div class="label">📥 Dump here</div>
-  <div class="mini" id="dump" contenteditable data-ph="paste links / ideas…"></div>
 
   <div class="label">🎯 To achieve today <span class="cnt" id="achieveCnt"></span></div>
   <div class="clist" id="achieve"></div>
   <div style="font-size:11px;color:#bdb6ab;margin-top:4px;">type a goal, press Enter — it's added to the plan with a sensible time</div>
 
   <div class="divider"></div>
-  <div class="plantitle">🕐 The Plan</div>
+  <div class="plantitle">🕐 The Plan <span class="startctl"><button class="stepbtn" id="startminus">−</button><span id="startval" contenteditable inputmode="numeric">08:00</span><button class="stepbtn" id="startplus">＋</button></span></div>
   <div id="plan"></div>
   <button class="addbtn" id="add">+ add block</button>
   <button class="addbtn" id="addbreak" style="margin-left:14px;">＋ break</button>
@@ -139,10 +136,10 @@
 
   <div class="divider"></div>
   <div class="label">🌙 Reflection</div>
-  <div class="mini" id="wins" contenteditable data-ph="how did the day go?…"></div>
+  <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v23</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v26</div>
 </div>
 
 <script>
@@ -593,7 +590,7 @@ plan.addEventListener("pointerup",()=>{if(rez){rez=null;renderPlan();save();}});
 /* editors */
 document.getElementById("startminus").onclick=()=>{day.start=fmt(Math.max(0,toMin(day.start)-5));document.getElementById("startval").textContent=day.start;renderPlan();save();};
 document.getElementById("startplus").onclick=()=>{day.start=fmt(toMin(day.start)+5);document.getElementById("startval").textContent=day.start;renderPlan();save();};
-document.getElementById("dump").addEventListener("blur",e=>{day.dump=e.target.textContent.trim();save();});
+(function(){const sv=document.getElementById("startval");sv.addEventListener("blur",()=>{day.start=fmt(toMin(sv.textContent));sv.textContent=day.start;renderPlan();save();});sv.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();sv.blur();}});})();
 document.getElementById("wins").addEventListener("blur",e=>{day.wins=e.target.textContent.trim();save();});
 document.getElementById("drive").addEventListener("click",connectDrive);
 document.getElementById("prev").onclick=()=>openDate(shiftDate(cur,-1));
@@ -604,7 +601,6 @@ function renderAll(){
   if(!day.achieve)day.achieve=[];
   renderHeader();
   const ad=document.getElementById("allday");ad.innerHTML="";(day.allday||[]).forEach(s=>{const d=document.createElement("div");d.className="ad";d.textContent="🗓 "+s;ad.appendChild(d);});
-  document.getElementById("dump").textContent=day.dump||"";
   document.getElementById("wins").textContent=day.wins||"";
   renderList("achieve");updateCounts();renderPlan();
 }
