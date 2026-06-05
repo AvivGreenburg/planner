@@ -102,7 +102,7 @@
   .ins:active:before,.ins:hover:before{opacity:1;color:var(--accent);border-color:var(--accent);}
   .ovl{position:fixed;inset:0;background:rgba(40,36,30,.35);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;}
   .dlg{background:#fff;border-radius:16px;padding:18px 18px 14px;max-width:300px;box-shadow:0 12px 40px rgba(0,0,0,.25);}
-  .dmsg{font-size:14px;color:var(--ink);line-height:1.4;margin-bottom:14px;}
+  .dmsg{font-size:14px;color:var(--ink);line-height:1.45;margin-bottom:14px;white-space:pre-line;}
   .dbtns{display:flex;gap:8px;justify-content:flex-end;}
   .dbtns button{border:none;border-radius:10px;padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;}
   .dno{background:#f0ede7;color:#6b665d;}
@@ -152,7 +152,7 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v35</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v36</div>
 </div>
 
 <script>
@@ -325,7 +325,7 @@ async function openDate(iso){
       const lU=local.updatedAt||0, lS=local.syncedAt||0, dU=d.updatedAt||0;
       const localEdited=lU>lS, driveChanged=dU!==lS;
       if(localEdited && driveChanged){        // both sides changed → ask
-        const keepLocal=confirm("This day was also changed on another device.\n\nOK = keep THIS device's version\nCancel = use the other device's version");
+        const keepLocal=await askDialog("This day was edited on another device since you last synced here.\n\nWhich version do you want to keep?","Keep this device","Use the other");
         if(keepLocal){day=local;await driveWrite(iso,day);day.syncedAt=day.updatedAt||0;}
         else{day=d;day.updatedAt=dU;day.syncedAt=dU;}
       } else if(localEdited){                  // only local edited offline → keep & push
