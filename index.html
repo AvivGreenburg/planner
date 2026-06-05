@@ -142,9 +142,7 @@
   <div class="divider"></div>
   <div class="plantitle">🕐 The Plan <span class="startctl"><button class="stepbtn" id="startminus">−</button><span id="startval" contenteditable inputmode="numeric">08:00</span><button class="stepbtn" id="startplus">＋</button></span></div>
   <div id="plan"></div>
-  <button class="addbtn" id="add">+ add block</button>
-  <button class="addbtn" id="addbreak" style="margin-left:14px;">＋ break</button>
-  <button class="addbtn" id="refreshcal" style="margin-left:14px;">↻ calendar</button>
+  <button class="addbtn" id="refreshcal">↻ calendar</button>
   <button class="addbtn" id="resetday" style="margin-left:16px;color:#b9b2a6;font-weight:500;">↻ regenerate from to-achieve</button>
 
   <div class="divider"></div>
@@ -152,7 +150,7 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v36</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v37</div>
 </div>
 
 <script>
@@ -568,8 +566,6 @@ plan.addEventListener("blur",e=>{
   if(t.dataset.act==="atime"){b.at=fmt(toMin(t.textContent));afterAnchorEdit(b);}
 },true);
 plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
-document.getElementById("add").onclick=()=>{const nb={cat:"deep",name:"",dur:30,done:false,id:rid()};day.blocks.push(nb);renderPlan();save();const n=plan.querySelector('.block[data-id="'+nb.id+'"] .name');if(n){n.setAttribute("contenteditable","true");n.focus();}};
-document.getElementById("addbreak").onclick=()=>{day.blocks.push(mk("Break",15,"break"));renderPlan();save();const n=plan.querySelector(".block:last-of-type");if(n)n.scrollIntoView({block:"center",behavior:"smooth"});};
 document.getElementById("refreshcal").onclick=async()=>{if(!connected){const f=document.getElementById("foot");if(f)f.textContent="connect Drive first";return;}try{const cal=await syncCalendar(cur);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;renderPlan();save();const f=document.getElementById("foot");if(f)f.textContent="calendar refreshed ☁︎";}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"refresh failed");}};
 document.getElementById("resetday").onclick=()=>{if(!confirm("Rebuild The Plan from your 'To achieve' list?\n(adds wake-up, durations, breaks and travel buffers — replaces the current plan blocks)"))return;genPlan();renderPlan();save();};
 
@@ -630,7 +626,10 @@ plan.addEventListener("pointercancel",endPress);
 let rez=null;
 plan.addEventListener("pointerdown",e=>{
   const h=e.target.closest('[data-act="resize"],[data-act="resizetop"]');if(!h)return;e.preventDefault();
-  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];rez={el,b,startY:e.clientY,startDur:b.dur,top:h.dataset.act==="resizetop"};try{h.setPointerCapture(e.pointerId);}catch(x){}
+  let el=e.target.closest(".block");
+  if(h.dataset.act==="resizetop"){let p=el.previousElementSibling;while(p&&!p.classList.contains("block"))p=p.previousElementSibling;if(!p)return;el=p;}
+  const b=day.blocks[idx(el.dataset.id)];if(!b)return;if(b.anchor&&!b.canEdit)return;
+  rez={el,b,startY:e.clientY,startDur:b.dur,top:false};try{h.setPointerCapture(e.pointerId);}catch(x){}
 },true);
 plan.addEventListener("pointermove",e=>{
   if(!rez)return;e.preventDefault();const delta=rez.top?(rez.startY-e.clientY):(e.clientY-rez.startY);let nd=Math.round((rez.startDur+delta/PXMIN)/5)*5;nd=Math.max(5,Math.min(600,nd));
