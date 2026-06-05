@@ -17,6 +17,7 @@
     --admin:#CDA15B;   --admin-bg:#f6eedd;
     --body:#B98A86;    --body-bg:#f1e7e5;
     --break:#B4ABA0;   --break-bg:#edeae6;
+    --social:#9D8FB8;  --social-bg:#efeaf4;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
@@ -85,6 +86,7 @@
   .resize{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:66px;height:15px;cursor:ns-resize;touch-action:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;}
   .resize:after{content:"";width:34px;height:4px;border-radius:3px;background:rgba(0,0,0,.16);}
   .resize:active:after{background:var(--catcolor,#999);}
+  .resize.top{top:0;bottom:auto;align-items:flex-start;padding:2px 0 0;}
   .block{user-select:none;-webkit-user-select:none;}
   .name[contenteditable="true"]{user-select:text;-webkit-user-select:text;cursor:text;background:rgba(255,255,255,.7);border-radius:4px;}
   .name:empty:before{content:"New task";color:#c3bdb3;}
@@ -95,9 +97,9 @@
   .addbtn{margin-top:8px;font-size:14px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;padding:6px 0;}
   .mini{font-size:14px;color:var(--ink);padding:6px 8px;outline:none;background:rgba(255,255,255,.6);border-radius:12px;min-height:40px;}
   .mini:empty:before{content:attr(data-ph);color:#c3bdb3;white-space:pre-line;}
-  .ins{position:relative;height:14px;margin:-5px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
-  .ins:before{content:"＋ break";font-size:10px;color:#c8c2b6;background:var(--bg);padding:0 7px;border-radius:8px;opacity:.5;transition:.12s;}
-  .ins:hover:before,.ins:active:before{opacity:1;color:var(--accent);}
+  .ins{position:relative;z-index:6;height:16px;margin:-3px 0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .ins:before{content:"+";font-size:13px;line-height:16px;color:#b9b2a6;background:#fff;border:1px solid #e3ddd0;border-radius:50%;width:18px;height:18px;text-align:center;opacity:.55;transition:.12s;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .ins:active:before,.ins:hover:before{opacity:1;color:var(--accent);border-color:var(--accent);}
   .ovl{position:fixed;inset:0;background:rgba(40,36,30,.35);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;}
   .dlg{background:#fff;border-radius:16px;padding:18px 18px 14px;max-width:300px;box-shadow:0 12px 40px rgba(0,0,0,.25);}
   .dmsg{font-size:14px;color:var(--ink);line-height:1.4;margin-bottom:14px;}
@@ -111,6 +113,7 @@
   .item.noplan .txt:after{content:"note";font-size:9px;color:#bdb6ab;background:#efece6;border-radius:8px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
   .block.anchor{border-left-style:dashed;}
   .block.anchor .name{font-weight:600;}
+  .cal{font-size:11px;margin-right:4px;opacity:.75;}
   .lock{font-size:11px;opacity:.65;margin-right:3px;}
   .atime{outline:none;border-bottom:1px dashed #b3ada1;padding-bottom:1px;}
   .atime:focus{background:#fff6d8;border-radius:3px;border-bottom-color:transparent;}
@@ -149,18 +152,19 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v29</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v35</div>
 </div>
 
 <script>
 const CATS={
-  routine:{label:"routine",color:"var(--routine)",bg:"var(--routine-bg)"},
-  deep:{label:"deep work",color:"var(--deep)",bg:"var(--deep-bg)"},
-  admin:{label:"admin",color:"var(--admin)",bg:"var(--admin-bg)"},
+  routine:{label:"prep",color:"var(--routine)",bg:"var(--routine-bg)"},
+  deep:{label:"focus",color:"var(--deep)",bg:"var(--deep-bg)"},
+  admin:{label:"upkeep",color:"var(--admin)",bg:"var(--admin-bg)"},
   body:{label:"body",color:"var(--body)",bg:"var(--body-bg)"},
-  break:{label:"break",color:"var(--break)",bg:"var(--break-bg)"},
+  social:{label:"social",color:"var(--social)",bg:"var(--social-bg)"},
+  break:{label:"rest",color:"var(--break)",bg:"var(--break-bg)"},
 };
-const ORDER=["routine","deep","admin","body","break"];
+const ORDER=["routine","deep","admin","body","social","break"];
 const KEY="aviv-planner-v2";
 const PXMIN=1.6, MINH=40;
 /* ---- Google Drive ---- */
@@ -403,10 +407,15 @@ function infer(text){
   const map=[
     [/yoga|יוגה/, 40, "body"],
     [/meditat|מדיט|מדיס|מדט/, 10, "body"],
-    [/misu|מיסו|walk|טיול|dog|כלב/, 45, "body"],
+    [/misu|מיסו|\bwalk\b|טיול|dog|כלב/, 45, "body"],
+    [/coffee|קפה/, out?60:25, out?"break":"admin"],
+    [/friend|חבר|בילוי|going out|night out|\bhang\b|\bdate\b|דייט|dinner|ארוח|drinks|party|מסיב/, 90, "social"],
+    [/outside|go out|לצאת|בחוץ|פארק|park/, 60, "body"],
     [/product sense|\bsense\b|פרודקט|פרוסקט|פרודוקט|סנס/, 45, "deep"],
-    [/deep work|computer|מחשב|עבוד/, 90, "deep"],
-    [/coffee|קפה/, out?60:25, "admin"],
+    [/interview|ראיון|\bjob\b|משרה|לינקדאין|linkedin/, 60, "deep"],
+    [/deep work|computer|מחשב|עבוד|קוד|\bcode\b/, 90, "deep"],
+    [/dishes|laundry|כביסה|כלים|נקיון|ניקיון|chore|סידור|house|בית/, 20, "admin"],
+    [/driv|נסיע|לנהוג|commute|\bcar\b|רכב/, 30, "routine"],
     [/shower|מקלחת|להתלבש|dress|רחצה/, 20, "routine"],
     [/wake|wakeup|השכמה|לקום|קימה/, 15, "routine"],
   ];
@@ -447,7 +456,7 @@ function addToPlan(txt){
   if(!day.wokeAdded){if(!day.blocks.some(b=>/^wake/i.test(b.name)))day.blocks.unshift(mk("Wake up",15,"routine"));day.wokeAdded=true;}
   const {dur,cat}=infer(txt);
   day.blocks.push(mk(txt,dur,cat));
-  if(isYoga(txt)&&!day.showerAdded){day.blocks.push(mk("Shower + dress",20,"routine"));day.showerAdded=true;}
+  if(isYoga(txt)&&!day.blocks.some(b=>!b.anchor&&/shower|מקלחת|dress|להתלבש|רחצה/i.test(b.name))){day.blocks.push(mk("Shower + dress",20,"routine"));}
 }
 // place fixed anchors at their real time; flow flexible blocks around them (auto-resolve, no overlap)
 function computeSchedule(blocks,startStr){
@@ -505,12 +514,12 @@ function renderPlan(){
       el.style.setProperty("--catcolor","#8b94a3");el.style.setProperty("--catbg","#eceef1");
       const lk=b.canEdit?'':'<span class="lock">🔒</span>';
       const tm=b.canEdit?('<span class="atime" data-act="atime" contenteditable inputmode="numeric">'+fmt(start)+'</span>–'+fmt(start+b.dur)):(fmt(start)+'–'+fmt(start+b.dur));
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+(b.canEdit?'<div class="grip" data-act="agrip">⠿</div>':'')+'<div class="bbody"><div class="name">'+lk+esc(b.name)+'</div><div class="meta"><span>'+tm+'</span>'+(b.location?'<span class="evloc">· 📍'+esc(b.location)+'</span>':'')+'</div></div><button class="del" data-act="del">×</button>'+(b.canEdit?'<div class="resize" data-act="resize"></div>':'');
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+(b.canEdit?'<div class="grip" data-act="agrip">⠿</div>':'')+'<div class="bbody"><div class="name"><span class="cal">📅</span>'+lk+esc(b.name)+'</div><div class="meta"><span>'+tm+'</span>'+(b.location?'<span class="evloc">· 📍'+esc(b.location)+'</span>':'')+'</div></div><button class="del" data-act="del">×</button>'+(b.canEdit?'<div class="resize" data-act="resize"></div>':'');
     } else {
       const c=CATS[b.cat]||CATS.deep;
       el.className="block"+(b.done?" done":"");
       el.style.setProperty("--catcolor",c.color);el.style.setProperty("--catbg",c.bg);
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize top" data-act="resizetop"></div><div class="resize" data-act="resize"></div>';
     }
     plan.appendChild(insEl(b.id));plan.appendChild(el);
   });
@@ -576,7 +585,7 @@ plan.addEventListener("pointerdown",e=>{
 plan.addEventListener("pointerdown",e=>{
   if(e.button&&e.button!==0)return;
   if(e.pointerType==="touch")return;
-  if(e.target.closest('[data-act="grip"],[data-act="resize"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
+  if(e.target.closest('[data-act="grip"],[data-act="resize"],[data-act="resizetop"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
   const el=e.target.closest(".block");if(!el)return;
   const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
   const nm=e.target.closest('[data-act="name"]');if(nm&&nm.getAttribute("contenteditable")==="true")return;
@@ -620,11 +629,11 @@ plan.addEventListener("pointercancel",endPress);
 /* duration resize (bottom-center handle only) */
 let rez=null;
 plan.addEventListener("pointerdown",e=>{
-  const h=e.target.closest('[data-act="resize"]');if(!h)return;e.preventDefault();
-  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];rez={el,b,startY:e.clientY,startDur:b.dur};try{h.setPointerCapture(e.pointerId);}catch(x){}
+  const h=e.target.closest('[data-act="resize"],[data-act="resizetop"]');if(!h)return;e.preventDefault();
+  const el=e.target.closest(".block");const b=day.blocks[idx(el.dataset.id)];rez={el,b,startY:e.clientY,startDur:b.dur,top:h.dataset.act==="resizetop"};try{h.setPointerCapture(e.pointerId);}catch(x){}
 },true);
 plan.addEventListener("pointermove",e=>{
-  if(!rez)return;e.preventDefault();let nd=Math.round((rez.startDur+(e.clientY-rez.startY)/PXMIN)/5)*5;nd=Math.max(5,Math.min(600,nd));
+  if(!rez)return;e.preventDefault();const delta=rez.top?(rez.startY-e.clientY):(e.clientY-rez.startY);let nd=Math.round((rez.startDur+delta/PXMIN)/5)*5;nd=Math.max(5,Math.min(600,nd));
   rez.b.dur=nd;rez.el.style.height=blockHeight(nd)+"px";const du=rez.el.querySelector(".dur");if(du)du.textContent=nd+"m";
   const sm={};computeSchedule(day.blocks,day.start).forEach(({b,start})=>sm[b.id]=start);
   [...plan.querySelectorAll(".block")].forEach(el=>{const s=sm[el.dataset.id];if(s!=null){const tk=el.querySelector(".tick");if(tk)tk.textContent=fmt(s);}});
