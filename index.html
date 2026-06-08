@@ -113,6 +113,8 @@
   .item.noplan .txt:after{content:"note";font-size:9px;color:#bdb6ab;background:#efece6;border-radius:8px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
   .block.anchor{border-left-style:dashed;}
   .block.anchor .name{font-weight:600;}
+  .block.travel{border-left-style:dotted;opacity:.92;}
+  .block.travel .name{font-weight:500;font-size:13px;color:#8a8278;}
   .cal{font-size:11px;margin-right:4px;opacity:.75;}
   .lock{font-size:11px;opacity:.65;margin-right:3px;}
   .atime{outline:none;border-bottom:1px dashed #b3ada1;padding-bottom:1px;}
@@ -150,7 +152,7 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v37</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v38</div>
 </div>
 
 <script>
@@ -333,7 +335,7 @@ async function openDate(iso){
       }
     }
     if(cur!==iso)return;
-    try{const cal=await syncCalendar(iso);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;const u=day.updatedAt||0;driveWrite(iso,day).then(()=>{day.syncedAt=u;saveLocal();}).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
+    try{const cal=await syncCalendar(iso);if(cal){const hid=day.hidden||[];day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors.filter(a=>!hid.includes(a.eventId)));day.allday=cal.allday;applyTravel();const u=day.updatedAt||0;driveWrite(iso,day).then(()=>{day.syncedAt=u;saveLocal();}).catch(()=>{});}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"calendar sync failed");}
     if(cur!==iso)return;
     saveLocal();renderAll();
   }catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"read failed");}
@@ -440,13 +442,32 @@ function genPlan(){
   items.forEach(txt=>{const {dur,cat}=infer(txt);flex.push(mk(txt,dur,cat));if(isYoga(txt))flex.push(mk("Shower + dress",20,"routine"));});
   flex=insertBreaks(flex);
   const events=day.blocks.filter(b=>b.anchor&&!b.travel);
-  const travel=[];
-  events.forEach(a=>{if(a.online)return;const at=toMin(a.at);
-    travel.push({id:rid(),anchor:true,travel:true,name:"🚗 travel",at:fmt(Math.max(0,at-30)),dur:30,done:false,cat:"break"});
-    travel.push({id:rid(),anchor:true,travel:true,name:"🚗 travel",at:fmt(at+a.dur),dur:30,done:false,cat:"break"});
-  });
-  day.blocks=[...flex,...events,...travel];
+  day.blocks=[...flex,...events];
+  applyTravel();
   day.wokeAdded=true;day.showerAdded=true;
+}
+/* derive a travel buffer before + after each non-online event.
+   keeps custom durations (matched by ofEvent+side), repositions when the
+   event moves/resizes, drops travel for events that vanished, and honors
+   per-side deletions in day.travelOff. local-only — never written to calendar. */
+function applyTravel(){
+  day.travelOff=day.travelOff||[];
+  const off=new Set(day.travelOff);
+  const events=day.blocks.filter(b=>b.anchor&&!b.travel&&!b.online);
+  const prev={};day.blocks.filter(b=>b.travel).forEach(t=>{prev[(t.ofEvent||"")+"|"+t.side]=t;});
+  const keep=[];
+  events.forEach(a=>{
+    const eid=a.eventId||a.id;const at=toMin(a.at);
+    ["pre","post"].forEach(side=>{
+      const key=eid+"|"+side;
+      if(off.has(key))return;
+      const ex=prev[key];const dur=ex?ex.dur:30;
+      const pos=side==="pre"?Math.max(0,at-dur):at+a.dur;
+      if(ex){ex.at=fmt(pos);ex.dur=dur;ex.ofEvent=eid;ex.side=side;ex.cat="break";keep.push(ex);}
+      else keep.push({id:rid(),anchor:true,travel:true,ofEvent:eid,side:side,name:"🚗 travel",at:fmt(pos),dur:dur,done:false,cat:"break"});
+    });
+  });
+  day.blocks=[...day.blocks.filter(b=>!b.travel),...keep];
 }
 /* incremental: add one achieve item to the plan (no full break pass) */
 function addToPlan(txt){
@@ -495,7 +516,7 @@ async function pushEvent(b){
   await dapi("https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(b.eventId)+"?sendUpdates="+su,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:{dateTime:sISO},end:{dateTime:eISO}})});
 }
 async function afterAnchorEdit(b){
-  renderPlan();save();
+  applyTravel();renderPlan();save();
   if(!b||!b.anchor||!b.eventId||!b.canEdit||!connected)return;
   const ok=await askDialog("Update '"+b.name+"' in Google Calendar to "+fmt(toMin(b.at))+"–"+fmt(toMin(b.at)+b.dur)+"?","Update","Cancel");
   if(!ok)return;
@@ -507,7 +528,11 @@ function renderPlan(){
   const CHK='<div class="check" data-act="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>';
   computeSchedule(day.blocks,day.start).forEach(({b,start})=>{
     const el=document.createElement("div");el.dataset.id=b.id;el.dataset.start=start;el.dataset.dur=b.dur;el.style.height=blockHeight(b.dur)+"px";
-    if(b.anchor){
+    if(b.travel){
+      el.className="block travel"+(b.done?" done":"");
+      el.style.setProperty("--catcolor","#B4ABA0");el.style.setProperty("--catbg","#edeae6");
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="bbody"><div class="name">'+esc(b.name)+'</div><div class="meta"><span>'+fmt(start)+'–'+fmt(start+b.dur)+' · '+b.dur+'m</span></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
+    } else if(b.anchor){
       el.className="block anchor"+(b.done?" done":"");
       el.style.setProperty("--catcolor","#8b94a3");el.style.setProperty("--catbg","#eceef1");
       const lk=b.canEdit?'':'<span class="lock">🔒</span>';
@@ -549,14 +574,27 @@ plan.addEventListener("click",e=>{
   const t=e.target.closest("[data-act]");if(!t)return;if(t.dataset.act==="resize")return;
   const el=e.target.closest(".block");const b=el&&day.blocks[idx(el.dataset.id)];if(!b)return;
   if(t.dataset.act==="check"){b.done=!b.done;el.classList.toggle("done");save();}
-  else if(t.dataset.act==="del"){day.blocks.splice(idx(el.dataset.id),1);renderPlan();save();}
+  else if(t.dataset.act==="del"){
+    if(b.travel){day.travelOff=day.travelOff||[];day.travelOff.push((b.ofEvent||"")+"|"+b.side);}
+    else if(b.anchor&&b.eventId){day.hidden=day.hidden||[];if(!day.hidden.includes(b.eventId))day.hidden.push(b.eventId);}
+    day.blocks.splice(idx(el.dataset.id),1);
+    if(b.anchor&&!b.travel)applyTravel();
+    renderPlan();save();
+  }
   else if(t.dataset.act==="cat"){b.cat=ORDER[(ORDER.indexOf(b.cat)+1)%ORDER.length];renderPlan();save();}
   else if(t.dataset.act==="name"&&!b.anchor){if(t.getAttribute("contenteditable")!=="true"){t.setAttribute("contenteditable","true");t.focus();placeCaretEnd(t);}}
 });
 plan.addEventListener("click",e=>{
   const ins=e.target.closest(".ins");if(!ins)return;
   const bid=ins.dataset.before;const nb=mk("Break",15,"break");
-  if(!bid){day.blocks.push(nb);}else{const i=day.blocks.findIndex(b=>b.id===bid);day.blocks.splice(i<0?day.blocks.length:i,0,nb);}
+  // insert relative to what's shown on screen (computed order), not raw array order
+  const order=computeSchedule(day.blocks,day.start).map(o=>o.b);
+  const xi=bid?order.findIndex(b=>b.id===bid):order.length;
+  let refFlex=null;
+  for(let i=(xi<0?order.length:xi);i<order.length;i++){if(!order[i].anchor){refFlex=order[i];break;}}
+  const flexArr=day.blocks.filter(b=>!b.anchor);const anchorsArr=day.blocks.filter(b=>b.anchor);
+  if(refFlex)flexArr.splice(flexArr.indexOf(refFlex),0,nb);else flexArr.push(nb);
+  day.blocks=[...flexArr,...anchorsArr];
   renderPlan();save();
 });
 plan.addEventListener("blur",e=>{
@@ -566,7 +604,7 @@ plan.addEventListener("blur",e=>{
   if(t.dataset.act==="atime"){b.at=fmt(toMin(t.textContent));afterAnchorEdit(b);}
 },true);
 plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
-document.getElementById("refreshcal").onclick=async()=>{if(!connected){const f=document.getElementById("foot");if(f)f.textContent="connect Drive first";return;}try{const cal=await syncCalendar(cur);if(cal){day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors);day.allday=cal.allday;renderPlan();save();const f=document.getElementById("foot");if(f)f.textContent="calendar refreshed ☁︎";}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"refresh failed");}};
+document.getElementById("refreshcal").onclick=async()=>{if(!connected){const f=document.getElementById("foot");if(f)f.textContent="connect Drive first";return;}try{const cal=await syncCalendar(cur);if(cal){const hid=day.hidden||[];day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors.filter(a=>!hid.includes(a.eventId)));day.allday=cal.allday;applyTravel();renderPlan();save();const f=document.getElementById("foot");if(f)f.textContent="calendar refreshed ☁︎";}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"refresh failed");}};
 document.getElementById("resetday").onclick=()=>{if(!confirm("Rebuild The Plan from your 'To achieve' list?\n(adds wake-up, durations, breaks and travel buffers — replaces the current plan blocks)"))return;genPlan();renderPlan();save();};
 
 /* long-press anywhere = drag reorder (flexible only); quick tap = controls / edit */
@@ -628,7 +666,7 @@ plan.addEventListener("pointerdown",e=>{
   const h=e.target.closest('[data-act="resize"],[data-act="resizetop"]');if(!h)return;e.preventDefault();
   let el=e.target.closest(".block");
   if(h.dataset.act==="resizetop"){let p=el.previousElementSibling;while(p&&!p.classList.contains("block"))p=p.previousElementSibling;if(!p)return;el=p;}
-  const b=day.blocks[idx(el.dataset.id)];if(!b)return;if(b.anchor&&!b.canEdit)return;
+  const b=day.blocks[idx(el.dataset.id)];if(!b)return;if(b.anchor&&!b.canEdit&&!b.travel)return;
   rez={el,b,startY:e.clientY,startDur:b.dur,top:false};try{h.setPointerCapture(e.pointerId);}catch(x){}
 },true);
 plan.addEventListener("pointermove",e=>{
@@ -637,7 +675,7 @@ plan.addEventListener("pointermove",e=>{
   const sm={};computeSchedule(day.blocks,day.start).forEach(({b,start})=>sm[b.id]=start);
   [...plan.querySelectorAll(".block")].forEach(el=>{const s=sm[el.dataset.id];if(s!=null){const tk=el.querySelector(".tick");if(tk)tk.textContent=fmt(s);}});
 });
-plan.addEventListener("pointerup",()=>{if(rez){const rb=rez.b;rez=null;if(rb&&rb.anchor){afterAnchorEdit(rb);}else{renderPlan();save();}}});
+plan.addEventListener("pointerup",()=>{if(rez){const rb=rez.b;rez=null;if(rb&&rb.travel){applyTravel();renderPlan();save();}else if(rb&&rb.anchor){afterAnchorEdit(rb);}else{renderPlan();save();}}});
 
 /* drag an editable calendar event up/down to change its time (then write back) */
 let amove=null;
