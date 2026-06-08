@@ -115,6 +115,19 @@
   .block.anchor .name{font-weight:600;}
   .block.travel{border-left-style:dotted;opacity:.92;}
   .block.travel .name{font-weight:500;font-size:13px;color:#8a8278;}
+  .gap{position:relative;margin-bottom:6px;border-radius:10px;border:1.5px dashed #e2dccf;background:repeating-linear-gradient(135deg,rgba(0,0,0,0.012) 0 7px,transparent 7px 14px);display:flex;align-items:center;justify-content:center;}
+  .gap .gaplbl{font-size:11px;color:#b3ac9f;font-weight:600;letter-spacing:.02em;}
+  .gap .tick{position:absolute;left:-60px;top:-7px;width:46px;text-align:left;font-size:12px;font-weight:600;color:#b8b1a4;font-variant-numeric:tabular-nums;}
+  .pinbtn{border:none;background:rgba(255,255,255,.5);border-radius:20px;padding:1px 7px;font-size:11px;cursor:pointer;line-height:1.4;opacity:.65;}
+  .pinbtn:hover{opacity:1;}
+  .pinmark{cursor:pointer;font-size:11px;}
+  .fixt{outline:none;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;background:rgba(255,255,255,.75);border-radius:5px;padding:0 5px;cursor:text;}
+  .block.pinned{border-left-style:double;border-left-width:5px;}
+  .block.pinned .tick{color:var(--catcolor,#7b756b);}
+  .block.empty{background:repeating-linear-gradient(135deg,rgba(0,0,0,0.015) 0 7px,transparent 7px 14px);border-left:4px dashed #cfc8bb;box-shadow:none;align-items:center;}
+  .block.empty .emptylbl{font-size:12px;color:#a9a293;font-weight:600;}
+  .mkbtn{border:none;background:rgba(255,255,255,.6);border-radius:20px;padding:2px 9px;font-size:11px;color:#7b756b;cursor:pointer;font-weight:600;}
+  .mkbtn:hover{background:#fff;}
   .cal{font-size:11px;margin-right:4px;opacity:.75;}
   .lock{font-size:11px;opacity:.65;margin-right:3px;}
   .atime{outline:none;border-bottom:1px dashed #b3ada1;padding-bottom:1px;}
@@ -152,7 +165,7 @@
   <div class="mini" id="wins" contenteditable data-ph="I'm grateful for…&#10;I did…"></div>
 
   <div class="foot" id="foot">saved on this device</div>
-  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v38</div>
+  <div style="text-align:center;font-size:10px;color:#cfc8be;margin-top:2px;">v42</div>
 </div>
 
 <script>
@@ -422,7 +435,32 @@ function infer(text){
   for(const [re,dur,cat] of map){ if(re.test(t)) return {dur,cat}; }
   return {dur:60,cat:"deep"};
 }
-function mk(name,dur,cat){return {id:rid(),name:name,dur:dur,cat:cat,done:false};}
+/* cute icon matched to the task text — added when a task becomes a plan block */
+function emojiFor(t){
+  t=(t||"").toLowerCase();
+  const m=[
+    [/yoga|יוגה/,"🧘"],[/meditat|מדיט|מדיס|מדט/,"🪷"],[/misu|מיסו|\bwalk\b|טיול|dog|כלב/,"🐶"],
+    [/coffee|קפה/,"☕"],[/friend|חבר|בילוי|going out|night out|\bhang\b|\bdate\b|דייט|dinner|ארוח|drinks|party|מסיב/,"🥂"],
+    [/outside|go out|לצאת|בחוץ|פארק|park|beach|ים|חוף/,"🌳"],[/product sense|\bsense\b|פרודקט|פרוסקט|פרודוקט|סנס/,"🧩"],
+    [/interview|ראיון/,"🎤"],[/\bjob\b|משרה|לינקדאין|linkedin|apply|הגש/,"💼"],[/deep work|computer|מחשב|עבוד|קוד|\bcode\b/,"💻"],
+    [/dishes|laundry|כביסה|כלים|נקיון|ניקיון|chore|סידור|house|בית/,"🧹"],[/driv|נסיע|לנהוג|commute|\bcar\b|רכב/,"🚗"],
+    [/shower|מקלחת|רחצה/,"🚿"],[/dress|להתלבש|בגד/,"👕"],[/wake|wakeup|השכמה|לקום|קימה/,"☀️"],
+    [/eat|אוכל|ארוח|breakfast|lunch|בוקר|צהריים|ערב/,"🍽️"],[/read|קרא|ספר|book/,"📚"],
+    [/gym|כושר|אימון|workout|run|ריצה|sport|ספורט/,"🏃"],[/call|שיחה|טלפון|phone|zoom|meet/,"📞"],
+    [/email|מייל|אימייל|inbox/,"✉️"],[/shop|קניות|סופר|groceries|מכולת/,"🛒"],[/sleep|שינה|לישון|nap|נמנום/,"😴"],
+    [/music|מוזיקה|לנגן|guitar|גיטרה|פסנתר|piano/,"🎵"],[/write|כתיב|לכתוב|journal|יומן/,"✍️"],
+    [/break|הפסקה|מנוחה|\brest\b/,"🌿"],[/doctor|רופא|רפואי|appointment|תור/,"🩺"],[/study|ללמוד|learn|לימוד|קורס|course/,"📖"],
+  ];
+  for(const [re,em] of m){if(re.test(t))return em;}
+  return "✨";
+}
+function withEmoji(name){
+  if(!name)return name;
+  const cp=name.codePointAt(0);
+  if(cp>=0x2190)return name;            // already starts with a symbol/emoji
+  return emojiFor(name)+" "+name;
+}
+function mk(name,dur,cat){return {id:rid(),name:withEmoji(name),dur:dur,cat:cat,done:false};}
 const isYoga=t=>/yoga|יוגה/i.test(t||"");
 /* insert breaks: 15-min after >1.5h non-break; 30-min once deep work passes 3h */
 function insertBreaks(arr){
@@ -479,8 +517,9 @@ function addToPlan(txt){
 }
 // place fixed anchors at their real time; flow flexible blocks around them (auto-resolve, no overlap)
 function computeSchedule(blocks,startStr){
-  const rem=blocks.filter(b=>b.anchor).map(b=>({b,at:toMin(b.at)})).sort((x,y)=>x.at-y.at);
-  const flex=blocks.filter(b=>!b.anchor);
+  const fixedTime=b=>b.anchor?toMin(b.at):toMin(b.fixed);   // anchors + pinned blocks sit at a real clock time
+  const rem=blocks.filter(b=>b.anchor||b.fixed).map(b=>({b,at:fixedTime(b)})).sort((x,y)=>x.at-y.at);
+  const flex=blocks.filter(b=>!b.anchor&&!b.fixed);
   const placed=[];let t=toMin(startStr);
   const popDue=()=>{let i;while((i=rem.findIndex(a=>a.at<=t))>=0){const a=rem.splice(i,1)[0];placed.push({b:a.b,start:a.at});t=Math.max(t,a.at+a.b.dur);}};
   for(const fb of flex){let g=0;
@@ -526,7 +565,15 @@ async function afterAnchorEdit(b){
 function renderPlan(){
   const plan=document.getElementById("plan");plan.innerHTML="";
   const CHK='<div class="check" data-act="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>';
+  let prevEnd=null;
   computeSchedule(day.blocks,day.start).forEach(({b,start})=>{
+    if(prevEnd!==null&&start-prevEnd>=5){    // real empty time between activities → show it to scale
+      const gap=start-prevEnd;const gp=document.createElement("div");gp.className="gap";
+      gp.style.height=Math.max(22,Math.round(gap*PXMIN))+"px";
+      gp.innerHTML='<span class="tick">'+fmt(prevEnd)+'</span><span class="gaplbl">'+gap+'m free</span>';
+      plan.appendChild(gp);
+    }
+    prevEnd=prevEnd===null?start+b.dur:Math.max(prevEnd,start+b.dur);
     const el=document.createElement("div");el.dataset.id=b.id;el.dataset.start=start;el.dataset.dur=b.dur;el.style.height=blockHeight(b.dur)+"px";
     if(b.travel){
       el.className="block travel"+(b.done?" done":"");
@@ -538,11 +585,17 @@ function renderPlan(){
       const lk=b.canEdit?'':'<span class="lock">🔒</span>';
       const tm=b.canEdit?('<span class="atime" data-act="atime" contenteditable inputmode="numeric">'+fmt(start)+'</span>–'+fmt(start+b.dur)):(fmt(start)+'–'+fmt(start+b.dur));
       el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span>'+(b.canEdit?'<div class="grip" data-act="agrip">⠿</div>':'')+'<div class="bbody"><div class="name"><span class="cal">📅</span>'+lk+esc(b.name)+'</div><div class="meta"><span>'+tm+'</span>'+(b.location?'<span class="evloc">· 📍'+esc(b.location)+'</span>':'')+'</div></div><button class="del" data-act="del">×</button>'+(b.canEdit?'<div class="resize" data-act="resize"></div>':'');
+    } else if(b.empty){
+      el.className="block empty";
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot" style="background:#cfc8bb"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="meta" style="margin-top:0"><span class="emptylbl">'+b.dur+'m פנוי</span><button class="mkbtn" data-act="mkblock">→ הפוך לבלוק</button></div></div><button class="del" data-act="del">×</button><div class="resize" data-act="resize"></div>';
     } else {
       const c=CATS[b.cat]||CATS.deep;
-      el.className="block"+(b.done?" done":"");
+      el.className="block"+(b.done?" done":"")+(b.fixed?" pinned":"");
       el.style.setProperty("--catcolor",c.color);el.style.setProperty("--catbg",c.bg);
-      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button></div></div><button class="del" data-act="del">×</button><div class="resize top" data-act="resizetop"></div><div class="resize" data-act="resize"></div>';
+      const pinUI=b.fixed
+        ? '<span class="pinmark" data-act="unpin" title="unpin — back to auto">📌</span><span class="fixt" data-act="fixt" contenteditable inputmode="numeric">'+fmt(start)+'</span>'
+        : '<button class="pinbtn" data-act="pin" title="pin to a time">🕐</button>';
+      el.innerHTML='<span class="tick">'+fmt(start)+'</span><span class="dot"></span><div class="grip" data-act="grip">⠿</div><div class="bbody"><div class="name" data-act="name">'+esc(b.name)+'</div><div class="meta"><span class="dur" contenteditable data-act="dur">'+b.dur+'m</span><button class="catbtn" data-act="cat">'+c.label+'</button>'+pinUI+'</div></div><button class="del" data-act="del">×</button><div class="resize top" data-act="resizetop"></div><div class="resize" data-act="resize"></div>';
     }
     plan.appendChild(insEl(b.id));plan.appendChild(el);
   });
@@ -582,11 +635,14 @@ plan.addEventListener("click",e=>{
     renderPlan();save();
   }
   else if(t.dataset.act==="cat"){b.cat=ORDER[(ORDER.indexOf(b.cat)+1)%ORDER.length];renderPlan();save();}
+  else if(t.dataset.act==="pin"){b.fixed=fmt(+el.dataset.start);renderPlan();save();const ne=document.querySelector('.block[data-id="'+b.id+'"] .fixt');if(ne){ne.setAttribute("contenteditable","true");ne.focus();placeCaretEnd(ne);}}
+  else if(t.dataset.act==="unpin"){delete b.fixed;renderPlan();save();}
+  else if(t.dataset.act==="mkblock"){delete b.empty;b.name=b.name||"";b.cat=b.cat||"deep";renderPlan();save();const ne=document.querySelector('.block[data-id="'+b.id+'"] .name');if(ne){ne.setAttribute("contenteditable","true");ne.focus();placeCaretEnd(ne);}}
   else if(t.dataset.act==="name"&&!b.anchor){if(t.getAttribute("contenteditable")!=="true"){t.setAttribute("contenteditable","true");t.focus();placeCaretEnd(t);}}
 });
 plan.addEventListener("click",e=>{
   const ins=e.target.closest(".ins");if(!ins)return;
-  const bid=ins.dataset.before;const nb=mk("Break",15,"break");
+  const bid=ins.dataset.before;const nb={id:rid(),empty:true,dur:30,done:false};   // "+" makes free time; convert to a block later
   // insert relative to what's shown on screen (computed order), not raw array order
   const order=computeSchedule(day.blocks,day.start).map(o=>o.b);
   const xi=bid?order.findIndex(b=>b.id===bid):order.length;
@@ -602,8 +658,9 @@ plan.addEventListener("blur",e=>{
   if(t.dataset.act==="name"){b.name=t.textContent.trim();t.setAttribute("contenteditable","false");save();}
   if(t.dataset.act==="dur"){b.dur=Math.max(5,parseDur(t.textContent));renderPlan();save();}
   if(t.dataset.act==="atime"){b.at=fmt(toMin(t.textContent));afterAnchorEdit(b);}
+  if(t.dataset.act==="fixt"){b.fixed=fmt(toMin(t.textContent));renderPlan();save();}
 },true);
-plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
+plan.addEventListener("keydown",e=>{const a=e.target.dataset&&e.target.dataset.act;if((a==="dur"||a==="name"||a==="fixt")&&e.key==="Enter"){e.preventDefault();e.target.blur();}});
 document.getElementById("refreshcal").onclick=async()=>{if(!connected){const f=document.getElementById("foot");if(f)f.textContent="connect Drive first";return;}try{const cal=await syncCalendar(cur);if(cal){const hid=day.hidden||[];day.blocks=day.blocks.filter(b=>!b.anchor).concat(cal.anchors.filter(a=>!hid.includes(a.eventId)));day.allday=cal.allday;applyTravel();renderPlan();save();const f=document.getElementById("foot");if(f)f.textContent="calendar refreshed ☁︎";}}catch(e){const f=document.getElementById("foot");if(f)f.textContent="⚠️ "+(e&&e.message?e.message:"refresh failed");}};
 document.getElementById("resetday").onclick=()=>{if(!confirm("Rebuild The Plan from your 'To achieve' list?\n(adds wake-up, durations, breaks and travel buffers — replaces the current plan blocks)"))return;genPlan();renderPlan();save();};
 
@@ -612,16 +669,16 @@ let press=null;
 // dedicated handle: starts a drag immediately, on any pointer (the reliable mobile path)
 plan.addEventListener("pointerdown",e=>{
   const g=e.target.closest('[data-act="grip"]');if(!g)return;e.preventDefault();
-  const el=e.target.closest(".block");if(!el)return;const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
+  const el=e.target.closest(".block");if(!el)return;const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor||b.fixed)return;
   press={el,x:e.clientX,y:e.clientY,pid:e.pointerId,dragging:false};startDrag();
 });
 // long-press anywhere: desktop (mouse) only — on touch the same gesture fights scrolling
 plan.addEventListener("pointerdown",e=>{
   if(e.button&&e.button!==0)return;
   if(e.pointerType==="touch")return;
-  if(e.target.closest('[data-act="grip"],[data-act="resize"],[data-act="resizetop"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"]'))return;
+  if(e.target.closest('[data-act="grip"],[data-act="resize"],[data-act="resizetop"],[data-act="check"],[data-act="del"],[data-act="cat"],[data-act="dur"],[data-act="pin"],[data-act="unpin"],[data-act="fixt"]'))return;
   const el=e.target.closest(".block");if(!el)return;
-  const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor)return;
+  const b=day.blocks[idx(el.dataset.id)];if(!b||b.anchor||b.fixed)return;
   const nm=e.target.closest('[data-act="name"]');if(nm&&nm.getAttribute("contenteditable")==="true")return;
   press={el,x:e.clientX,y:e.clientY,pid:e.pointerId,dragging:false};
   press.timer=setTimeout(startDrag,200);
